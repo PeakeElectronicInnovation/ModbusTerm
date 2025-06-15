@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "FMnTtSIsbiE=",
+  "success": true,
+  "projectFilePath": "G:\\My Drive\\Documents\\WindsurfCodium\\ModbusTerm\\TestConsole\\TestConsole.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\peake\\.nuget\\packages\\nmodbus\\3.0.81\\nmodbus.3.0.81.nupkg.sha512"
+  ],
+  "logs": []
+}
