@@ -654,6 +654,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void CalculateWriteQuantity()
         {
+            // Null check for CurrentRequest
+            if (CurrentRequest == null) return;
+
             if (CurrentRequest.IsWriteFunction && _writeDataInputs.Count > 0)
             {
                 // For coils, each item is 1 coil
@@ -682,6 +685,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void UpdateAvailableWriteDataTypes()
         {
+            // Null check for CurrentRequest
+            if (CurrentRequest == null) return;
+
             bool isCoilWrite = CurrentRequest.FunctionCode == ModbusFunctionCode.WriteSingleCoil || CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleCoils;
 
             foreach (var item in _writeDataInputs)
@@ -695,40 +701,49 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void UpdateWriteDataInputs()
         {
-            // Remove event handlers from existing items
-            foreach (var item in _writeDataInputs)
+            try
             {
-                item.OnDataTypeChanged -= WriteDataItem_DataTypeChanged;
-            }
-
-            _writeDataInputs.Clear();
-
-            // Only add input fields if we're in a write function
-            if (CurrentRequest.IsWriteFunction)
-            {
-                bool isCoilWrite = CurrentRequest.FunctionCode == ModbusFunctionCode.WriteSingleCoil || CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleCoils;
-                bool isMultipleWrite = CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleCoils || CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleRegisters;
-
-                // Add at least one write data item
-                var firstItem = new WriteDataItemViewModel(isCoilWrite);
-                firstItem.OnDataTypeChanged += WriteDataItem_DataTypeChanged;
-                _writeDataInputs.Add(firstItem);
-
-                // For single write functions, quantity is always 1
-                if (!isMultipleWrite)
+                // Remove event handlers from existing items
+                foreach (var item in _writeDataInputs)
                 {
-                    CurrentRequest.Quantity = 1;
+                    item.OnDataTypeChanged -= WriteDataItem_DataTypeChanged;
                 }
+
+                _writeDataInputs.Clear();
+
+                // Only add input fields if we're in a write function
+                if (CurrentRequest != null && CurrentRequest.IsWriteFunction)
+                {
+                    bool isCoilWrite = CurrentRequest.FunctionCode == ModbusFunctionCode.WriteSingleCoil || CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleCoils;
+                    bool isMultipleWrite = CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleCoils || CurrentRequest.FunctionCode == ModbusFunctionCode.WriteMultipleRegisters;
+
+                    // Add at least one write data item
+                    var firstItem = new WriteDataItemViewModel(isCoilWrite);
+                    firstItem.OnDataTypeChanged += WriteDataItem_DataTypeChanged;
+                    _writeDataInputs.Add(firstItem);
+
+                    // For single write functions, quantity is always 1
+                    if (!isMultipleWrite)
+                    {
+                        CurrentRequest.Quantity = 1;
+                    }
+
+                    // Update available data types and calculate quantity
+                    UpdateAvailableWriteDataTypes();
+                    CalculateWriteQuantity();
+                }
+
+                // Notify UI
+                OnPropertyChanged(nameof(WriteDataInputs));
+                OnPropertyChanged(nameof(IsMultipleWriteFunction));
+                OnPropertyChanged(nameof(IsWriteFunction));
+                CommandManager.InvalidateRequerySuggested();
             }
-
-            // Update available data types and calculate quantity
-            UpdateAvailableWriteDataTypes();
-            CalculateWriteQuantity();
-
-            // Notify UI
-            OnPropertyChanged(nameof(WriteDataInputs));
-            OnPropertyChanged(nameof(IsMultipleWriteFunction));
-            CommandManager.InvalidateRequerySuggested();
+            catch (Exception ex)
+            {
+                // Log the exception to help with debugging
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Error updating write data inputs: {ex.Message}"));
+            }
         }
 
         /// <summary>
@@ -1153,13 +1168,34 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         public void CreateReadRequest(ModbusFunctionCode functionCode)
         {
-            CurrentRequest = new ReadFunctionParameters
+            try
             {
-                FunctionCode = functionCode,
-                SlaveId = CurrentRequest?.SlaveId ?? 1,
-                StartAddress = CurrentRequest?.StartAddress ?? 0,
-                Quantity = ((ReadFunctionParameters?)CurrentRequest)?.Quantity ?? 10
-            };
+                // Get the current quantity value without unsafe casting
+                ushort quantity = 10; // Default quantity
+                
+                // If we have an existing request, try to use its quantity
+                if (CurrentRequest != null)
+                {
+                    // Access the quantity directly without casting
+                    quantity = CurrentRequest.Quantity;
+                }
+
+                // Create the new read request with safe parameters
+                CurrentRequest = new ReadFunctionParameters
+                {
+                    FunctionCode = functionCode,
+                    SlaveId = CurrentRequest?.SlaveId ?? 1,
+                    StartAddress = CurrentRequest?.StartAddress ?? 0,
+                    Quantity = quantity
+                };
+                
+                // Ensure UI is updated
+                OnPropertyChanged(nameof(IsWriteFunction));
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Error creating read request: {ex.Message}"));
+            }
         }
 
         /// <summary>

@@ -248,9 +248,11 @@
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="300" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="150" />
                             </Grid.ColumnDefinitions>
                             
                             <!-- Function Code Selection -->
@@ -269,23 +271,23 @@
                             
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="Slave ID:" VerticalAlignment="Center" Margin="5,5,10,5" />
                             <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding CurrentRequest.SlaveId, Mode=TwoWay}" 
-                                     Margin="0,5,5,5" Width="60" HorizontalAlignment="Left" />
+                                     Margin="0,5,15,5" />
                             
-                            <!-- Address and Quantity -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Start Address:" VerticalAlignment="Center" Margin="5,12,10,5" />
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CurrentRequest.StartAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,12,15,5" />
+                            <TextBlock Grid.Row="0" Grid.Column="4" Text="Start Address:" VerticalAlignment="Center" Margin="5,5,10,5" />
+                            <TextBox Grid.Row="0" Grid.Column="5" Text="{Binding CurrentRequest.StartAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,5,5,5" />
                             
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Quantity:" VerticalAlignment="Center" Margin="5,12,10,5" 
+                            <!-- Quantity (only visible for read functions) -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Quantity:" VerticalAlignment="Center" Margin="5,12,10,5" 
                                        Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding CurrentRequest.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,12,5,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CurrentRequest.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,12,15,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
 
                             <!-- Dynamic write data inputs -->
-                            <ItemsControl Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" 
+                            <ItemsControl Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" 
                                       x:Name="WriteDataItemsControl"
                                       ItemsSource="{Binding WriteDataInputs}" 
-                                      Margin="0,12,5,5" 
+                                      Margin="5,12,5,5" 
                                       Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -305,9 +307,12 @@
                                                     
                                                     <ToggleButton Grid.Column="0" x:Name="CoilToggle"
                                                                 IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                                                Content="{Binding BooleanValue, Converter={StaticResource InverseBooleanConverter}}"
                                                                 Width="50" Height="26" Margin="0,0,4,0"
                                                                 ToolTip="Toggle coil value (True/False)">
+                                                        <ToggleButton.Content>
+                                                            <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="10" />
+                                                        </ToggleButton.Content>
+                                                    
                                                         <ToggleButton.Style>
                                                             <Style TargetType="ToggleButton">
                                                                 <Setter Property="Background" Value="#F44336" />
@@ -391,14 +396,20 @@
                             </ItemsControl>
                             
                             <!-- Add Value Button -->
-                            <Button Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" 
-                                    HorizontalAlignment="Left" Margin="0,2,0,5" Padding="5,2" 
-                                    Command="{Binding AddWriteDataItemCommand}" 
-                                    Content="Add Value" 
-                                    Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal"
+                                       Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       Margin="5,5,0,5">
+                                <Button Padding="5,2" 
+                                        Command="{Binding AddWriteDataItemCommand}" 
+                                        Content="Add Value" 
+                                        Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Button Margin="15,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
+                                        Content="Send" Style="{StaticResource StandardButtonStyle}" />
+                            </StackPanel>
                             
-                            <!-- Data Type and Send Button -->
-                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="5,12,10,5">
+                            <!-- Data Type for Read Functions -->
+                            <StackPanel Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,12,10,5"
+                                        Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                 <TextBlock Text="Data Type:" VerticalAlignment="Center" Margin="0,0,10,0" />
                                 <ComboBox Width="180" SelectedIndex="{Binding SelectedDataType, Mode=TwoWay}" ItemsSource="{Binding AvailableDataTypes}" x:Name="DataTypeComboBox">
                                     <!-- Display friendly names using the ModbusDataTypeConverter -->
@@ -408,10 +419,9 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
+                                <Button Margin="15,0,10,0" Padding="8,4" Command="{Binding SendRequestCommand}"
+                                        Content="Send" Style="{StaticResource StandardButtonStyle}" />
                             </StackPanel>
-                            
-                            <Button Grid.Row="3" Grid.Column="3" Content="Send Request" Margin="0,12,5,5"
-                                    Command="{Binding SendRequestCommand}" HorizontalAlignment="Right" Width="120" Style="{StaticResource StandardButtonStyle}" />
                         </Grid>
                     </GroupBox>
                     
