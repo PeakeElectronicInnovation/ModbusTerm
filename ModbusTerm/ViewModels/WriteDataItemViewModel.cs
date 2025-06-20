@@ -75,7 +75,7 @@ namespace ModbusTerm.ViewModels
         /// <summary>
         /// Event that is raised when the data type changes
         /// </summary>
-        public event EventHandler OnDataTypeChanged;
+        public event EventHandler? OnDataTypeChanged;
         
         /// <summary>
         /// Initializes a new instance of the WriteDataItemViewModel class

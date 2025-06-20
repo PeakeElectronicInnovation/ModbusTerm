@@ -91,6 +91,22 @@ namespace ModbusTerm.Models
         }
 
         /// <summary>
+        /// Creates a sent event with the specified data and message
+        /// </summary>
+        /// <param name="data">The raw data sent</param>
+        /// <param name="message">The message describing what was sent</param>
+        /// <returns>A new CommunicationEvent</returns>
+        public static CommunicationEvent CreateSentEvent(byte[] data, string message)
+        {
+            return new CommunicationEvent
+            {
+                Type = EventType.Sent,
+                RawData = data,
+                Message = message
+            };
+        }
+
+        /// <summary>
         /// Creates a received event with the specified data
         /// </summary>
         /// <param name="data">The raw data received</param>
@@ -101,6 +117,22 @@ namespace ModbusTerm.Models
             {
                 Type = EventType.Received,
                 RawData = data
+            };
+        }
+
+        /// <summary>
+        /// Creates a received event with the specified data and message
+        /// </summary>
+        /// <param name="data">The raw data received</param>
+        /// <param name="message">The message describing what was received</param>
+        /// <returns>A new CommunicationEvent</returns>
+        public static CommunicationEvent CreateReceivedEvent(byte[] data, string message)
+        {
+            return new CommunicationEvent
+            {
+                Type = EventType.Received,
+                RawData = data,
+                Message = message
             };
         }
 

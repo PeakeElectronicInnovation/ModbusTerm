@@ -56,8 +56,9 @@ namespace ModbusTerm.Services
         /// </summary>
         public ModbusSlaveService()
         {
-            // Create sample register definitions for reference
-            CreateSampleRegisters();
+            // Initialize with empty register collection and data store
+            _dataStore = new DefaultSlaveDataStore();
+            InitializeRegisters();
         }
 
         /// <summary>
@@ -320,35 +321,7 @@ namespace ModbusTerm.Services
             return new int[] { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
         }
 
-        /// <summary>
-        /// Create sample registers
-        /// </summary>
-        private void CreateSampleRegisters()
-        {
-            RegisterDefinitions.Add(new RegisterDefinition 
-            { 
-                Address = 0, 
-                Value = 0, 
-                Name = "Status Register",
-                Description = "Device status flags"
-            });
-            
-            RegisterDefinitions.Add(new RegisterDefinition 
-            { 
-                Address = 1, 
-                Value = 100, 
-                Name = "Temperature",
-                Description = "Current temperature value"
-            });
-            
-            RegisterDefinitions.Add(new RegisterDefinition 
-            { 
-                Address = 2, 
-                Value = 0, 
-                Name = "Control Register",
-                Description = "Device control flags"
-            });
-        }
+        // Sample registers have been removed as per user request - users will now add their own registers
         
         /// <summary>
         /// Initialize the Modbus data store with register values from RegisterDefinitions
@@ -360,9 +333,27 @@ namespace ModbusTerm.Services
             // Initialize all defined registers in the data store
             foreach (var register in RegisterDefinitions)
             {
+                // Prepare values based on data type
+                var values = new List<ushort>();
+                
+                // Primary value is always included
+                values.Add(register.Value);
+                
+                // Add additional values for multi-register types
+                int registerCount = register.RegisterCount;
+                if (registerCount > 1 && register.AdditionalValues.Count > 0)
+                {
+                    // Only add as many values as we need for this data type
+                    int additionalCount = Math.Min(register.AdditionalValues.Count, registerCount - 1);
+                    for (int i = 0; i < additionalCount; i++)
+                    {
+                        values.Add(register.AdditionalValues[i]);
+                    }
+                }
+                
                 // For data store registers, we need to use proper NModbus API methods
                 // In NModbus 3.0.81, use WritePoints method on DefaultPointSource<ushort>
-                _dataStore.HoldingRegisters.WritePoints(register.Address, new ushort[] { (ushort)register.Value });
+                _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
             }            
         }
 
@@ -380,8 +371,26 @@ namespace ModbusTerm.Services
                     return;
                 }
                 
+                // Prepare values based on data type
+                var values = new List<ushort>();
+                
+                // Primary value is always included
+                values.Add(register.Value);
+                
+                // Add additional values for multi-register types
+                int registerCount = register.RegisterCount;
+                if (registerCount > 1 && register.AdditionalValues.Count > 0)
+                {
+                    // Only add as many values as we need for this data type
+                    int additionalCount = Math.Min(register.AdditionalValues.Count, registerCount - 1);
+                    for (int i = 0; i < additionalCount; i++)
+                    {
+                        values.Add(register.AdditionalValues[i]);
+                    }
+                }
+                
                 // Update the register in the data store using WritePoints method
-                _dataStore.HoldingRegisters.WritePoints(register.Address, new ushort[] { (ushort)register.Value });
+                _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
                 
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated register {register.Address} to {register.FormattedValue}"));
             }

@@ -130,7 +130,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     
-                    <TextBlock Grid.Column="0" Text="IP Address:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                    <TextBlock Grid.Column="0" Text="IP Address / Hostname:" VerticalAlignment="Center" Margin="0,0,5,0" />
                     <TextBox Grid.Column="1" Text="{Binding ConnectionParameters.IpAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                              Margin="0,0,10,0" />
                     
@@ -284,124 +284,118 @@
                                      Margin="0,12,15,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
 
                             <!-- Dynamic write data inputs -->
-                            <ItemsControl Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6" 
-                                      x:Name="WriteDataItemsControl"
-                                      ItemsSource="{Binding WriteDataInputs}" 
-                                      Margin="5,12,5,5" 
-                                      Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,8,5" Padding="4" BorderThickness="1" BorderBrush="#CCCCCC" CornerRadius="3" Background="#FAFAFA">
-                                            <Grid>
-                                                <!-- Coil Write (Boolean) Template -->
-                                                <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
+                            <ScrollViewer Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Margin="5,12,5,5"
+                                          Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ItemsControl x:Name="WriteDataItemsControl"
+                                          ItemsSource="{Binding WriteDataInputs}"
+                                          HorizontalAlignment="Left">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" MaxWidth="650" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,8,5" Padding="4" BorderThickness="1" BorderBrush="#CCCCCC" CornerRadius="3" Background="#FAFAFA">
+                                                <Grid>
+                                                    <!-- Coil Write (Boolean) Template -->
+                                                    <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        
+                                                        <ToggleButton Grid.Column="0"
+                                                                       IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
+                                                                       Width="40" Height="24" Margin="0,0,4,0"
+                                                                    ToolTip="Toggle coil value (True/False)">
+                                                            <ToggleButton.Content>
+                                                                <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="10" />
+                                                            </ToggleButton.Content>
+                                                        
+                                                            <ToggleButton.Style>
+                                                                <Style TargetType="ToggleButton">
+                                                                    <Setter Property="Background" Value="#F44336" />
+                                                                    <Setter Property="Foreground" Value="White" />
+                                                                    <Setter Property="BorderThickness" Value="0" />
+                                                                    <Setter Property="Template">
+                                                                        <Setter.Value>
+                                                                            <ControlTemplate TargetType="ToggleButton">
+                                                                                <Border Background="{TemplateBinding Background}" 
+                                                                                        CornerRadius="13" 
+                                                                                        BorderThickness="{TemplateBinding BorderThickness}">
+                                                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                                                                    VerticalAlignment="Center" 
+                                                                                                    Content="{TemplateBinding Content}"
+                                                                                                    TextElement.FontWeight="Bold"
+                                                                                                    TextElement.FontSize="10" />
+                                                                                </Border>
+                                                                                <ControlTemplate.Triggers>
+                                                                                    <Trigger Property="IsChecked" Value="True">
+                                                                                        <Setter Property="Background" Value="#4CAF50" />
+                                                                                    </Trigger>
+                                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                                        <Setter Property="Opacity" Value="0.8" />
+                                                                                    </Trigger>
+                                                                                </ControlTemplate.Triggers>
+                                                                            </ControlTemplate>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Style>
+                                                            </ToggleButton.Style>
+                                                        </ToggleButton>
+                                                    </Grid>
                                                     
-                                                    <ToggleButton Grid.Column="0" x:Name="CoilToggle"
-                                                                IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                                                Width="50" Height="26" Margin="0,0,4,0"
-                                                                ToolTip="Toggle coil value (True/False)">
-                                                        <ToggleButton.Content>
-                                                            <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="10" />
-                                                        </ToggleButton.Content>
-                                                    
-                                                        <ToggleButton.Style>
-                                                            <Style TargetType="ToggleButton">
-                                                                <Setter Property="Background" Value="#F44336" />
-                                                                <Setter Property="Foreground" Value="White" />
-                                                                <Setter Property="BorderThickness" Value="0" />
-                                                                <Setter Property="Template">
-                                                                    <Setter.Value>
-                                                                        <ControlTemplate TargetType="ToggleButton">
-                                                                            <Border Background="{TemplateBinding Background}" 
-                                                                                    CornerRadius="13" 
-                                                                                    BorderThickness="{TemplateBinding BorderThickness}">
-                                                                                <ContentPresenter HorizontalAlignment="Center" 
-                                                                                                VerticalAlignment="Center" 
-                                                                                                Content="{TemplateBinding Content}"
-                                                                                                TextElement.FontWeight="Bold"
-                                                                                                TextElement.FontSize="10" />
-                                                                            </Border>
-                                                                            <ControlTemplate.Triggers>
-                                                                                <Trigger Property="IsChecked" Value="True">
-                                                                                    <Setter Property="Background" Value="#4CAF50" />
-                                                                                </Trigger>
-                                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                                    <Setter Property="Opacity" Value="0.8" />
-                                                                                </Trigger>
-                                                                            </ControlTemplate.Triggers>
-                                                                        </ControlTemplate>
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                            </Style>
-                                                        </ToggleButton.Style>
-                                                    </ToggleButton>
-                                                    
-                                                    <Button Grid.Column="1"
-                                                            Command="{Binding DataContext.RemoveWriteDataItemCommand, ElementName=WriteDataItemsControl}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="✕" Width="20" Height="20" Margin="0,3,0,3"
-                                                            ToolTip="Remove this coil"
-                                                            Visibility="{Binding DataContext.IsMultipleWriteFunction, ElementName=WriteDataItemsControl, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                            Style="{StaticResource StandardButtonStyle}" 
-                                                            Background="#F44336" FontSize="10" />
+                                                    <!-- Register Write Template -->
+                                                    <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        
+                                                        <TextBox Grid.Column="0" 
+                                                                 Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                                 Height="24" MinWidth="80" Width="Auto" Margin="0,0,4,0"
+                                                                 ToolTip="Enter register value" />
+                                                        
+                                                        <ComboBox Grid.Column="1"
+                                                                  ItemsSource="{Binding AvailableDataTypes}"
+                                                                  SelectedItem="{Binding SelectedDataType, Mode=TwoWay}"
+                                                                  Height="24" Margin="0,0,4,0"
+                                                                  ToolTip="Select data type">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" FontSize="10" />
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+                                                    </Grid>
                                                 </Grid>
                                                 
-                                                <!-- Register Write Template -->
-                                                <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="80" />
-                                                        <ColumnDefinition Width="60" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    
-                                                    <TextBox Grid.Column="0" 
-                                                             Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                             Height="24" Margin="0,0,4,0"
-                                                             ToolTip="Enter register value" />
-                                                    
-                                                    <ComboBox Grid.Column="1"
-                                                              ItemsSource="{Binding AvailableDataTypes}"
-                                                              SelectedItem="{Binding SelectedDataType, Mode=TwoWay}"
-                                                              Height="24" Margin="0,0,4,0"
-                                                              ToolTip="Select data type">
-                                                        <ComboBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" FontSize="10" />
-                                                            </DataTemplate>
-                                                        </ComboBox.ItemTemplate>
-                                                    </ComboBox>
-                                                    
-                                                    <Button Grid.Column="2"
-                                                            Command="{Binding DataContext.RemoveWriteDataItemCommand, ElementName=WriteDataItemsControl}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="✕" Width="20" Height="20" Margin="0,2,0,2"
-                                                            ToolTip="Remove this register"
-                                                            Visibility="{Binding DataContext.IsMultipleWriteFunction, ElementName=WriteDataItemsControl, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                            Style="{StaticResource StandardButtonStyle}" 
-                                                            Background="#F44336" FontSize="10" />
-                                                </Grid>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                                <!-- Removed duplicated Register Write Template -->
+                                                
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                             
-                            <!-- Add Value Button -->
+                            <!-- Add/Remove Value Buttons -->
                             <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal"
                                        Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}"
                                        Margin="5,5,0,5">
-                                <Button Padding="5,2" 
+                                <Button Padding="8,4" 
                                         Command="{Binding AddWriteDataItemCommand}" 
                                         Content="Add Value" 
+                                        Style="{StaticResource StandardButtonStyle}"
+                                        Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Button Padding="8,4" 
+                                        Command="{Binding RemoveLastWriteDataItemCommand}" 
+                                        Content="Remove Value" 
+                                        Margin="10,0,0,0"
+                                        Style="{StaticResource StandardButtonStyle}"
                                         Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <Button Margin="15,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
                                         Content="Send" Style="{StaticResource StandardButtonStyle}" />
@@ -509,13 +503,14 @@
                             
                             <!-- Register Data Grid -->
                             <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
-                                      Name="RegistersGrid"
-                                      ItemsSource="{Binding RegisterDefinitions}"
-                                      SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
-                                      Style="{StaticResource ModernDataGridStyle}">
+                                       Name="RegistersGrid"
+                                       ItemsSource="{Binding RegisterDefinitions}"
+                                       SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
+                                       CanUserAddRows="False"
+                                       Style="{StaticResource ModernDataGridStyle}">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
-                                    <DataGridTextColumn Header="Value" Binding="{Binding FormattedValue}" Width="100" />
+                                    <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
                                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
                                     <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
                                     <DataGridComboBoxColumn Header="Data Type" 
@@ -523,12 +518,12 @@
                                                           Width="100">
                                         <DataGridComboBoxColumn.ElementStyle>
                                             <Style TargetType="ComboBox">
-                                                <Setter Property="ItemsSource" Value="{Binding DataContext.DataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             </Style>
                                         </DataGridComboBoxColumn.ElementStyle>
                                         <DataGridComboBoxColumn.EditingElementStyle>
                                             <Style TargetType="ComboBox">
-                                                <Setter Property="ItemsSource" Value="{Binding DataContext.DataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
                                             </Style>
                                         </DataGridComboBoxColumn.EditingElementStyle>
                                     </DataGridComboBoxColumn>
@@ -539,9 +534,6 @@
                             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                                 <Button Content="Add Register" Width="100" Margin="0,0,8,0"
                                         Command="{Binding AddRegisterCommand}" Style="{StaticResource StandardButtonStyle}" />
-                                <Button Content="Edit Register" Width="100" Margin="0,0,8,0"
-                                        Command="{Binding EditRegisterCommand}" 
-                                        IsEnabled="{Binding HasSelectedRegister}" Style="{StaticResource StandardButtonStyle}" />
                                 <Button Content="Remove Register" Width="115" Margin="0,0,8,0"
                                         Command="{Binding RemoveRegisterCommand}" 
                                         IsEnabled="{Binding HasSelectedRegister}" Style="{StaticResource StandardButtonStyle}" />
@@ -578,25 +570,24 @@
                     <DataGrid.Resources>
                         <Style TargetType="DataGridRow">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding EventType}" Value="Error">
+                                <DataTrigger Binding="{Binding Type}" Value="Error">
                                     <Setter Property="Background" Value="#FFDDDD" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding EventType}" Value="Warning">
+                                <DataTrigger Binding="{Binding Type}" Value="Info">
                                     <Setter Property="Background" Value="#FFFFDD" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Direction}" Value="Send">
+                                <DataTrigger Binding="{Binding Type}" Value="Sent">
                                     <Setter Property="Background" Value="#E6F2FF" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Direction}" Value="Receive">
+                                <DataTrigger Binding="{Binding Type}" Value="Received">
                                     <Setter Property="Background" Value="#E6FFE6" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </DataGrid.Resources>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="100" />
-                        <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="100" />
-                        <DataGridTextColumn Header="Direction" Binding="{Binding Direction}" Width="100" />
+                        <DataGridTextColumn Header="Time" Binding="{Binding TimestampString}" Width="100" />
+                        <DataGridTextColumn Header="Type" Binding="{Binding TypeString}" Width="100" />
                         <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" />
                         <DataGridTextColumn Header="Raw Data" Binding="{Binding HexData}" Width="250" />
                     </DataGrid.Columns>

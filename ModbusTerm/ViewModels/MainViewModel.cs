@@ -4,6 +4,7 @@ using ModbusTerm.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -34,6 +35,14 @@ namespace ModbusTerm.ViewModels
         private List<ModbusDataType> _availableDataTypes = new List<ModbusDataType>();
         private ICommand _addWriteDataItemCommand;
         private ICommand _removeWriteDataItemCommand;
+        private ICommand _removeLastWriteDataItemCommand;
+        private RegisterDefinition? _selectedRegister;
+        private ICommand _addRegisterCommand;
+        private ICommand _removeRegisterCommand;
+        private ICommand _clearRegistersCommand;
+        private ICommand _editRegisterCommand;
+        private ICommand _importRegistersCommand;
+        private ICommand _exportRegistersCommand;
 
         /// <summary>
         /// Command to connect to a Modbus device
@@ -81,8 +90,70 @@ namespace ModbusTerm.ViewModels
         /// Gets the command to remove a write data item
         /// </summary>
         public ICommand RemoveWriteDataItemCommand => _removeWriteDataItemCommand ??= new RelayCommand(
-            execute: parameter => RemoveWriteDataItem(parameter as WriteDataItemViewModel),
+            execute: parameter => { if (parameter is WriteDataItemViewModel item) RemoveWriteDataItem(item); },
             canExecute: parameter => IsMultipleWriteFunction && _writeDataInputs.Count > 1);
+
+        /// <summary>
+        /// Gets the command to remove the last write data item
+        /// </summary>
+        public ICommand RemoveLastWriteDataItemCommand => _removeLastWriteDataItemCommand ??= new RelayCommand(
+            execute: _ => RemoveLastWriteDataItem(),
+            canExecute: _ => CanRemoveLastWriteDataItem());
+            
+        /// <summary>
+        /// Gets or sets the selected register in slave mode
+        /// </summary>
+        public RegisterDefinition? SelectedRegister
+        {
+            get => _selectedRegister;
+            set
+            {
+                if (SetProperty(ref _selectedRegister, value))
+                {
+                    OnPropertyChanged(nameof(HasSelectedRegister));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets whether there is a selected register
+        /// </summary>
+        public bool HasSelectedRegister => SelectedRegister != null;
+        
+        /// <summary>
+        /// Gets whether there are registers defined
+        /// </summary>
+        public bool HasRegisters => _slaveService.RegisterDefinitions.Count > 0;
+        
+        /// <summary>
+        /// Gets the command to add a new register in slave mode
+        /// </summary>
+        public ICommand AddRegisterCommand => _addRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to remove a register in slave mode
+        /// </summary>
+        public ICommand RemoveRegisterCommand => _removeRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to clear all registers in slave mode
+        /// </summary>
+        public ICommand ClearRegistersCommand => _clearRegistersCommand;
+        
+        /// <summary>
+        /// Gets the command to edit a register in slave mode
+        /// </summary>
+        public ICommand EditRegisterCommand => _editRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to import registers from a file
+        /// </summary>
+        public ICommand ImportRegistersCommand => _importRegistersCommand;
+        
+        /// <summary>
+        /// Gets the command to export registers to a file
+        /// </summary>
+        public ICommand ExportRegistersCommand => _exportRegistersCommand;
 
         /// <summary>
         /// Gets or sets whether the connection is established
@@ -163,7 +234,7 @@ namespace ModbusTerm.ViewModels
         /// <summary>
         /// Gets or sets the last Modbus response
         /// </summary>
-        public ModbusResponseInfo LastResponse
+        public ModbusResponseInfo? LastResponse
         {
             get => _lastResponse;
             set
@@ -221,7 +292,7 @@ namespace ModbusTerm.ViewModels
                     if (SetProperty(ref _selectedDataType, newType))
                     {
                         // Reformat response data with the new type
-                        if (_lastResponse != null)
+                        if (_lastResponse != null && _lastResponse.Data != null)
                         {
                             ReformatResponseData(_lastResponse.Data);
                         }
@@ -319,6 +390,36 @@ namespace ModbusTerm.ViewModels
             ExportEventsCommand = new RelayCommand(_ => ExportEvents(), _ => CommunicationEvents.Count > 0);
             SaveConnectionCommand = new RelayCommand(_ => SaveConnection());
             LoadConnectionCommand = new RelayCommand(_ => LoadConnection());
+            
+            // Initialize write data item commands
+            _addWriteDataItemCommand = new RelayCommand(_ => AddWriteDataItem(), _ => IsMultipleWriteFunction);
+            _removeWriteDataItemCommand = new RelayCommand(
+                parameter => { if (parameter is WriteDataItemViewModel item) RemoveWriteDataItem(item); },
+                parameter => IsMultipleWriteFunction && _writeDataInputs.Count > 1);
+            _removeLastWriteDataItemCommand = new RelayCommand(_ => RemoveLastWriteDataItem(), _ => CanRemoveLastWriteDataItem());
+            
+            // Initialize register management commands
+            _addRegisterCommand = new RelayCommand(_ => AddRegister(), _ => IsSlaveMode);
+            _removeRegisterCommand = new RelayCommand(_ => RemoveRegister(), _ => IsSlaveMode && HasSelectedRegister);
+            _clearRegistersCommand = new RelayCommand(_ => ClearRegisters(), _ => IsSlaveMode && HasRegisters);
+            _editRegisterCommand = new RelayCommand(_ => EditRegister(), _ => IsSlaveMode && HasSelectedRegister);
+            _importRegistersCommand = new RelayCommand(_ => ImportRegisters(), _ => IsSlaveMode);
+            _exportRegistersCommand = new RelayCommand(_ => ExportRegisters(), _ => IsSlaveMode && HasRegisters);
+            
+            // Initialize data types for slave mode registers
+            InitializeDataTypes();
+            
+            // Set up event handler for register value changes
+            _slaveService.RegisterDefinitions.CollectionChanged += RegisterDefinitions_CollectionChanged;
+            
+            // Hook up property changed events to existing registers
+            foreach (var register in _slaveService.RegisterDefinitions)
+            {
+                if (register is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                }
+            }
         }
 
         /// <summary>
@@ -497,7 +598,9 @@ namespace ModbusTerm.ViewModels
                     };
                 }
 
-                LastResponse = response; // This will trigger the LastResponse setter which updates status and items
+                // This will trigger the LastResponse setter which updates status and items
+                // response could be null here, but LastResponse is already marked as nullable
+                LastResponse = response;
 
                 // Add a received event if successful
                 if (response != null && response.IsSuccess)
@@ -642,11 +745,259 @@ namespace ModbusTerm.ViewModels
         }
 
         /// <summary>
+        /// Removes the last write data item from the collection
+        /// </summary>
+        private void RemoveLastWriteDataItem()
+        {
+            if (_writeDataInputs.Count > 1)
+            {
+                var lastItem = _writeDataInputs[_writeDataInputs.Count - 1];
+                lastItem.OnDataTypeChanged -= WriteDataItem_DataTypeChanged;
+                _writeDataInputs.Remove(lastItem);
+
+                CalculateWriteQuantity();
+
+                // Force command availability to update
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        /// <summary>
+        /// Determines if the last write data item can be removed
+        /// </summary>
+        private bool CanRemoveLastWriteDataItem()
+        {
+            return _writeDataInputs.Count > 1 && IsMultipleWriteFunction;
+        }
+
+        /// <summary>
         /// Event handler for when a write data item's data type changes
         /// </summary>
-        private void WriteDataItem_DataTypeChanged(object sender, EventArgs e)
+        private void WriteDataItem_DataTypeChanged(object? sender, EventArgs e)
         {
             CalculateWriteQuantity();
+        }
+        
+        /// <summary>
+        /// Add a new register to the slave register collection
+        /// </summary>
+        private void AddRegister()
+        {
+            try
+            {
+                // Find the next available address
+                ushort nextAddress = 0;
+                if (_slaveService.RegisterDefinitions.Count > 0)
+                {
+                    var last = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).Last();
+                    nextAddress = (ushort)(last.Address + last.RegisterCount);
+                }
+                
+                // Create a new register with default values
+                var newRegister = new RegisterDefinition
+                {
+                    Address = nextAddress,
+                    Value = 0,
+                    Name = $"Register {nextAddress}",
+                    Description = "New register",
+                    DataType = ModbusDataType.UInt16
+                };
+                
+                // Add to the service's collection
+                _slaveService.AddRegister(newRegister);
+                
+                // Select the new register
+                SelectedRegister = newRegister;
+                
+                // Notify UI that registers collection has changed
+                OnPropertyChanged(nameof(HasRegisters));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Remove the selected register from the slave register collection
+        /// </summary>
+        private void RemoveRegister()
+        {
+            if (SelectedRegister == null) return;
+            
+            try
+            {
+                // Keep a reference to remove
+                var registerToRemove = SelectedRegister;
+                
+                // Clear selection first to avoid any issues
+                SelectedRegister = null;
+                
+                // Remove from service
+                _slaveService.RemoveRegister(registerToRemove);
+                
+                // Notify UI
+                OnPropertyChanged(nameof(HasRegisters));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to remove register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Clear all registers from the slave register collection
+        /// </summary>
+        private void ClearRegisters()
+        {
+            try
+            {
+                // Clear selection first
+                SelectedRegister = null;
+                
+                // Clear the collection
+                var registers = _slaveService.RegisterDefinitions.ToList();
+                foreach (var register in registers)
+                {
+                    _slaveService.RemoveRegister(register);
+                }
+                
+                // Notify UI
+                OnPropertyChanged(nameof(HasRegisters));
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("All registers cleared"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to clear registers: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Edit the currently selected register
+        /// </summary>
+        private void EditRegister()
+        {
+            if (SelectedRegister == null) return;
+            
+            // In this simple implementation, we just ensure the register data is updated in the datastore
+            try
+            {
+                _slaveService.UpdateRegisterValue(SelectedRegister);
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Import registers from a file
+        /// </summary>
+        private void ImportRegisters()
+        {
+            try
+            {
+                // For now, this is just a placeholder
+                // In a real implementation, this would open a file dialog and import registers from a CSV or JSON file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Register import not implemented yet"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import registers: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Export registers to a file
+        /// </summary>
+        private void ExportRegisters()
+        {
+            try
+            {
+                // For now, this is just a placeholder
+                // In a real implementation, this would open a file dialog and export registers to a CSV or JSON file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Register export not implemented yet"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export registers: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Initialize the available data types collection
+        /// </summary>
+        private void InitializeDataTypes()
+        {
+            // Clear existing items
+            _availableDataTypes.Clear();
+            
+            // Add all available data types
+            _availableDataTypes.Add(ModbusDataType.UInt16);
+            _availableDataTypes.Add(ModbusDataType.Int16);
+            _availableDataTypes.Add(ModbusDataType.UInt32);
+            _availableDataTypes.Add(ModbusDataType.Int32);
+            _availableDataTypes.Add(ModbusDataType.Float32);
+            _availableDataTypes.Add(ModbusDataType.Float64);
+            _availableDataTypes.Add(ModbusDataType.Hex);
+            _availableDataTypes.Add(ModbusDataType.Binary);
+            
+            // Notify UI of changes
+            OnPropertyChanged(nameof(AvailableDataTypes));
+        }
+        
+        /// <summary>
+        /// Handle collection changes in the RegisterDefinitions collection
+        /// </summary>
+        private void RegisterDefinitions_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                // Handle added registers
+                foreach (RegisterDefinition newRegister in e.NewItems)
+                {
+                    if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                    }
+                }
+            }
+            
+            if (e.OldItems != null)
+            {
+                // Handle removed registers
+                foreach (RegisterDefinition oldRegister in e.OldItems)
+                {
+                    if (oldRegister is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged -= Register_PropertyChanged;
+                    }
+                }
+            }
+            
+            // Notify UI properties that depend on register count
+            OnPropertyChanged(nameof(HasRegisters));
+        }
+        
+        /// <summary>
+        /// Handle property changes in RegisterDefinition objects
+        /// </summary>
+        private void Register_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // When a register property changes, update the value in the Modbus data store
+            if (sender is RegisterDefinition register && (e.PropertyName == nameof(RegisterDefinition.Value) || e.PropertyName == nameof(RegisterDefinition.DataType)))
+            {
+                try
+                {
+                    _slaveService.UpdateRegisterValue(register);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't crash
+                    OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update register {register.Address}: {ex.Message}"));
+                }
+            }
         }
 
         /// <summary>
@@ -818,8 +1169,26 @@ namespace ModbusTerm.ViewModels
                     }
                     break;
 
+                case ModbusDataType.Float32:
+                    if (float.TryParse(value, out float floatValue))
+                    {
+                        // For single register, we can only capture the first half of a float
+                        // This is only useful in specific scenarios
+                        byte[] bytes = BitConverter.GetBytes(floatValue);
+                        parameters.Value = BitConverter.ToUInt16(bytes, 0);
+
+                        // Show warning to user that float values need multiple registers
+                        CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent(
+                            "Float32 values require 2 registers. Only first half will be written. Use Write Multiple Registers for complete float value."));
+                    }
+                    else
+                    {
+                        throw new FormatException($"Invalid Float32 value: {value}");
+                    }
+                    break;
+
                 default:
-                    // For other types (Float32, Float64, etc.) that don't fit in a single register
+                    // For other types (Float64, etc.) that don't fit in a single register
                     // Just parse as UInt16 as a fallback
                     if (ushort.TryParse(value, out ushort defaultValue))
                     {

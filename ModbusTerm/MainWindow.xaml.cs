@@ -192,7 +192,7 @@ public partial class MainWindow : Window
     /// Event handler for when the communication events collection changes
     /// Implements auto-scrolling behavior for the event log
     /// </summary>
-    private void CommunicationEvents_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    private void CommunicationEvents_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
         // Only auto-scroll if the AutoScrollEventLog setting is enabled
         if (_viewModel.AutoScrollEventLog && e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
@@ -224,7 +224,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Helper method to find a child control of a specific type
     /// </summary>
-    private T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    private T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
     {
         for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
         {
@@ -236,7 +236,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                T childOfChild = FindVisualChild<T>(child);
+                T? childOfChild = FindVisualChild<T>(child);
                 if (childOfChild != null)
                 {
                     return childOfChild;

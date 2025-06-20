@@ -17,21 +17,21 @@ namespace ModbusTerm.Helpers
                 switch (dataType)
                 {
                     case ModbusDataType.UInt16:
-                        return "Unsigned 16-bit";
+                        return "u16";
                     case ModbusDataType.Int16:
-                        return "Signed 16-bit";
+                        return "i16";
                     case ModbusDataType.UInt32:
-                        return "Unsigned 32-bit";
+                        return "u32";
                     case ModbusDataType.Int32:
-                        return "Signed 32-bit";
+                        return "i32";
                     case ModbusDataType.Float32:
-                        return "Float 32-bit";
+                        return "f32";
                     case ModbusDataType.Float64:
-                        return "Float 64-bit";
+                        return "f64";
                     case ModbusDataType.AsciiString:
-                        return "ASCII String";
+                        return "ASCII";
                     case ModbusDataType.Hex:
-                        return "Hexadecimal";
+                        return "Hex";
                     case ModbusDataType.Binary:
                         return "Binary";
                     default:

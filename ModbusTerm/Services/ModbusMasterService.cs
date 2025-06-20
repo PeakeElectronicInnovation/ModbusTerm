@@ -205,32 +205,73 @@ namespace ModbusTerm.Services
                     case ModbusFunctionCode.ReadCoils:
                         if (parameters is ReadFunctionParameters readCoils)
                         {
-                            var coils = await _master.ReadCoilsAsync(parameters.SlaveId, parameters.StartAddress, readCoils.Quantity);
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Read {readCoils.Quantity} coils from address {parameters.StartAddress} (FC1) - Slave ID {parameters.SlaveId}";
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(readCoils.Quantity >> 8), (byte)(readCoils.Quantity & 0xFF) }));
+                                (byte)(readCoils.Quantity >> 8), (byte)(readCoils.Quantity & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            var coils = await _master.ReadCoilsAsync(parameters.SlaveId, parameters.StartAddress, readCoils.Quantity);
+                            
+                            // Log the received response with raw data
+                            // For boolean arrays, convert to byte array representation
+                            byte[] responseBytes = GetByteArrayFromBooleans(coils);
+                            string receivedMessage = $"Received {coils.Length} coil values from address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                            
                             result = coils;
                         }
                         break;
 
                     case ModbusFunctionCode.ReadDiscreteInputs:
-                        if (parameters is ReadFunctionParameters readInputs)
+                        if (parameters is ReadFunctionParameters readDiscrete)
                         {
-                            var inputs = await _master.ReadInputsAsync(parameters.SlaveId, parameters.StartAddress, readInputs.Quantity);
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Read {readDiscrete.Quantity} discrete inputs from address {parameters.StartAddress} (FC2) - Slave ID {parameters.SlaveId}";
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(readInputs.Quantity >> 8), (byte)(readInputs.Quantity & 0xFF) }));
+                                (byte)(readDiscrete.Quantity >> 8), (byte)(readDiscrete.Quantity & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            var inputs = await _master.ReadInputsAsync(parameters.SlaveId, parameters.StartAddress, readDiscrete.Quantity);
+                            
+                            // Log the received response with raw data
+                            // For boolean arrays, convert to byte array representation
+                            byte[] responseBytes = GetByteArrayFromBooleans(inputs);
+                            string receivedMessage = $"Received {inputs.Length} discrete input values from address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                            
                             result = inputs;
                         }
                         break;
-
+                        
                     case ModbusFunctionCode.ReadHoldingRegisters:
                         if (parameters is ReadFunctionParameters readHolding)
                         {
-                            var registers = await _master.ReadHoldingRegistersAsync(parameters.SlaveId, parameters.StartAddress, readHolding.Quantity);
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Read {readHolding.Quantity} holding registers from address {parameters.StartAddress} (FC3) - Slave ID {parameters.SlaveId}";
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(readHolding.Quantity >> 8), (byte)(readHolding.Quantity & 0xFF) }));
+                                (byte)(readHolding.Quantity >> 8), (byte)(readHolding.Quantity & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            var registers = await _master.ReadHoldingRegistersAsync(parameters.SlaveId, parameters.StartAddress, readHolding.Quantity);
+                            
+                            // Log the received response with raw data
+                            byte[] responseBytes = GetByteArrayFromUshorts(registers);
+                            string receivedMessage = $"Received {registers.Length} register values from address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                            
                             result = registers;
                         }
                         break;
@@ -238,10 +279,23 @@ namespace ModbusTerm.Services
                     case ModbusFunctionCode.ReadInputRegisters:
                         if (parameters is ReadFunctionParameters readInput)
                         {
-                            var registers = await _master.ReadInputRegistersAsync(parameters.SlaveId, parameters.StartAddress, readInput.Quantity);
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Read {readInput.Quantity} input registers from address {parameters.StartAddress} (FC4) - Slave ID {parameters.SlaveId}";
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(readInput.Quantity >> 8), (byte)(readInput.Quantity & 0xFF) }));
+                                (byte)(readInput.Quantity >> 8), (byte)(readInput.Quantity & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            var registers = await _master.ReadInputRegistersAsync(parameters.SlaveId, parameters.StartAddress, readInput.Quantity);
+                            
+                            // Log the received response with raw data
+                            byte[] responseBytes = GetByteArrayFromUshorts(registers);
+                            string receivedMessage = $"Received {registers.Length} input register values from address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                            
                             result = registers;
                         }
                         break;
@@ -249,11 +303,23 @@ namespace ModbusTerm.Services
                     case ModbusFunctionCode.WriteSingleCoil:
                         if (parameters is WriteSingleCoilParameters writeCoil)
                         {
-                            await _master.WriteSingleCoilAsync(parameters.SlaveId, parameters.StartAddress, writeCoil.Value);
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Write single coil value {(writeCoil.Value ? "ON" : "OFF")} to address {parameters.StartAddress} (FC5) - Slave ID {parameters.SlaveId}";
                             ushort value = writeCoil.Value ? (ushort)0xFF00 : (ushort)0x0000;
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(value >> 8), (byte)(value & 0xFF) }));
+                                (byte)(value >> 8), (byte)(value & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            await _master.WriteSingleCoilAsync(parameters.SlaveId, parameters.StartAddress, writeCoil.Value);
+                            
+                            // Log the received response (echo response for write operations)
+                            string receivedMessage = $"Write confirmed for coil at address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(requestBytes, receivedMessage));
+                            
                             result = writeCoil.Value;
                         }
                         break;
@@ -261,10 +327,22 @@ namespace ModbusTerm.Services
                     case ModbusFunctionCode.WriteSingleRegister:
                         if (parameters is WriteSingleRegisterParameters writeReg)
                         {
-                            await _master.WriteSingleRegisterAsync(parameters.SlaveId, parameters.StartAddress, writeReg.Value);
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(new byte[] { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Write single register value {writeReg.Value} to address {parameters.StartAddress} (FC6) - Slave ID {parameters.SlaveId}";
+                            
+                            // Create and log sent event
+                            byte[] requestBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
                                 (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
-                                (byte)(writeReg.Value >> 8), (byte)(writeReg.Value & 0xFF) }));
+                                (byte)(writeReg.Value >> 8), (byte)(writeReg.Value & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                            
+                            // Execute the actual request
+                            await _master.WriteSingleRegisterAsync(parameters.SlaveId, parameters.StartAddress, writeReg.Value);
+                            
+                            // Log the received response (echo response for write operations)
+                            string receivedMessage = $"Write confirmed for register at address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(requestBytes, receivedMessage));
+                            
                             result = writeReg.Value;
                         }
                         break;
@@ -272,9 +350,10 @@ namespace ModbusTerm.Services
                     case ModbusFunctionCode.WriteMultipleCoils:
                         if (parameters is WriteMultipleCoilsParameters writeCoils)
                         {
-                            await _master.WriteMultipleCoilsAsync(parameters.SlaveId, parameters.StartAddress, writeCoils.Values.ToArray());
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Write {writeCoils.Values.Count} coils to address {parameters.StartAddress} (FC15) - Slave ID {parameters.SlaveId}";
                             
-                            // Build basic Modbus request for logging
+                            // Build complete Modbus request for logging
                             var coilBytes = new List<byte>
                             { 
                                 parameters.SlaveId, 
@@ -286,17 +365,33 @@ namespace ModbusTerm.Services
                                 (byte)Math.Ceiling(writeCoils.Values.Count / 8.0)
                             };
                             
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(coilBytes.ToArray()));
-                            result = writeCoils.Values;
+                            // Add the actual coil values to the log data
+                            foreach (bool value in writeCoils.Values)
+                            {
+                                coilBytes.Add((byte)(value ? 0xFF : 0x00));
+                            }
+                            
+                            // Create and log sent event
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(coilBytes.ToArray(), sentMessage));
+                            
+                            // Execute the actual request
+                            await _master.WriteMultipleCoilsAsync(parameters.SlaveId, parameters.StartAddress, writeCoils.Values.ToArray());
+                            
+                            // Log the received response (echo response for write operations)
+                            string receivedMessage = $"Write confirmed for coils at address {parameters.StartAddress}";
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(coilBytes.ToArray(), receivedMessage));
+                            
+                            result = writeCoils.Values.ToArray();
                         }
                         break;
 
                     case ModbusFunctionCode.WriteMultipleRegisters:
                         if (parameters is WriteMultipleRegistersParameters writeRegs)
                         {
-                            await _master.WriteMultipleRegistersAsync(parameters.SlaveId, parameters.StartAddress, writeRegs.Values.ToArray());
+                            // Create descriptive message for sent event
+                            string sentMessage = $"Write {writeRegs.Values.Count} registers to address {parameters.StartAddress} (FC16) - Slave ID {parameters.SlaveId}";
                             
-                            // Build basic Modbus request for logging
+                            // Build complete Modbus request for logging
                             var regBytes = new List<byte>
                             { 
                                 parameters.SlaveId, 
@@ -308,7 +403,26 @@ namespace ModbusTerm.Services
                                 (byte)(writeRegs.Values.Count * 2)
                             };
                             
-                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(regBytes.ToArray()));
+                            // Add the actual register values to the log data
+                            foreach (ushort value in writeRegs.Values)
+                            {
+                                regBytes.Add((byte)(value >> 8));    // High byte
+                                regBytes.Add((byte)(value & 0xFF));  // Low byte
+                            }
+                            
+                            // Create and log sent event
+                            RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(regBytes.ToArray(), sentMessage));
+                            
+                            // Execute the actual request
+                            await _master.WriteMultipleRegistersAsync(parameters.SlaveId, parameters.StartAddress, writeRegs.Values.ToArray());
+                            
+                            // Log the received response (echo response for write operations)
+                            string receivedMessage = $"Write confirmed for registers at address {parameters.StartAddress}";
+                            byte[] responseBytes = { parameters.SlaveId, (byte)parameters.FunctionCode, 
+                                (byte)(parameters.StartAddress >> 8), (byte)(parameters.StartAddress & 0xFF),
+                                (byte)(writeRegs.Values.Count >> 8), (byte)(writeRegs.Values.Count & 0xFF) };
+                            RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                            
                             result = writeRegs.Values;
                         }
                         break;
@@ -334,7 +448,18 @@ namespace ModbusTerm.Services
                 responseInfo.IsSuccess = false;
                 responseInfo.ErrorMessage = ex.Message;
                 
-                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Execution error: {ex.Message}"));
+                // Create a more concise error message for SlaveExceptions
+                string errorMessage;
+                if (ex is NModbus.SlaveException slaveEx)
+                {
+                    errorMessage = $"Modbus Error: FC{(byte)slaveEx.FunctionCode} - Code {slaveEx.SlaveExceptionCode} - {GetSlaveExceptionMessage(slaveEx.SlaveExceptionCode)}";
+                }
+                else
+                {
+                    errorMessage = $"Execution error: {ex.Message.Split('.').FirstOrDefault() ?? ex.Message}";
+                }
+                
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(errorMessage));
                 return responseInfo;
             }
         }
@@ -346,6 +471,28 @@ namespace ModbusTerm.Services
         {
             return SerialPort.GetPortNames();
         }
+        
+        /// <summary>
+        /// Get a concise description for a Modbus slave exception code
+        /// </summary>
+        /// <param name="slaveExceptionCode">The exception code returned by the slave device</param>
+        /// <returns>A short description of the exception</returns>
+        private string GetSlaveExceptionMessage(byte slaveExceptionCode)
+        {
+            return slaveExceptionCode switch
+            {
+                1 => "Illegal Function",
+                2 => "Illegal Data Address",
+                3 => "Illegal Data Value",
+                4 => "Slave Device Failure",
+                5 => "Acknowledge",
+                6 => "Slave Device Busy",
+                8 => "Memory Parity Error",
+                10 => "Gateway Path Unavailable",
+                11 => "Gateway Target Device Failed to Respond",
+                _ => $"Unknown Exception Code {slaveExceptionCode}"
+            };
+        }
 
         /// <summary>
         /// Get a list of standard baud rates
@@ -356,11 +503,63 @@ namespace ModbusTerm.Services
         }
 
         /// <summary>
-        /// Raise the CommunicationEventOccurred event
+        /// Raise the CommunicationEvent
         /// </summary>
-        private void RaiseCommunicationEvent(CommunicationEvent e)
+        private void RaiseCommunicationEvent(CommunicationEvent evt)
         {
-            CommunicationEventOccurred?.Invoke(this, e);
+            CommunicationEventOccurred?.Invoke(this, evt);
+        }
+        
+        /// <summary>
+        /// Converts a boolean array to a byte array suitable for logging
+        /// </summary>
+        /// <param name="booleans">Array of booleans to convert</param>
+        /// <returns>Byte array representation</returns>
+        private byte[] GetByteArrayFromBooleans(bool[] booleans)
+        {
+            if (booleans == null || booleans.Length == 0)
+                return new byte[0];
+                
+            // Calculate how many bytes we need (each byte holds 8 booleans)
+            int byteCount = (booleans.Length + 7) / 8;
+            byte[] result = new byte[byteCount + 1]; // +1 for the count byte
+            
+            // First byte is the count of values
+            result[0] = (byte)booleans.Length;
+            
+            // Pack the booleans into bytes
+            for (int i = 0; i < booleans.Length; i++)
+            {
+                if (booleans[i])
+                    result[1 + (i / 8)] |= (byte)(1 << (i % 8));
+            }
+            
+            return result;
+        }
+        
+        /// <summary>
+        /// Converts a ushort array to a byte array suitable for logging
+        /// </summary>
+        /// <param name="ushorts">Array of ushorts to convert</param>
+        /// <returns>Byte array representation</returns>
+        private byte[] GetByteArrayFromUshorts(ushort[] ushorts)
+        {
+            if (ushorts == null || ushorts.Length == 0)
+                return new byte[0];
+                
+            byte[] result = new byte[ushorts.Length * 2 + 1]; // 2 bytes per ushort + 1 byte for count
+            
+            // First byte is the count of values
+            result[0] = (byte)ushorts.Length;
+            
+            // Convert each ushort to two bytes
+            for (int i = 0; i < ushorts.Length; i++)
+            {
+                result[1 + (i * 2)] = (byte)(ushorts[i] >> 8);    // High byte
+                result[1 + (i * 2) + 1] = (byte)(ushorts[i] & 0xFF); // Low byte
+            }
+            
+            return result;
         }
 
         /// <summary>
