@@ -21,6 +21,8 @@ namespace ModbusTerm.Models
         private ModbusDataType _dataType = ModbusDataType.UInt16;
         private string _editableValue = "0";
         private bool _editingInProgress = false; // Flag to prevent Value setter from disrupting editing
+        private bool _suppressNotifications = false; // Flag to control whether property changes raise notifications
+        private bool _isRecentlyModified = false; // Flag to indicate this register was recently modified by external master
         
         /// <summary>
         /// Gets or sets the register address
@@ -56,9 +58,13 @@ namespace ModbusTerm.Models
                     if (!_editingInProgress)
                     {
                         _editableValue = FormattedValue;
-                        NotifyPropertyChanged(nameof(EditableValue));
+                        
+                        // Always notify for EditableValue regardless of suppression
+                        // This is critical for external writes to show immediately in UI
+                        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditableValue)));
                     }
                     
+                    // Notify value change
                     NotifyPropertyChanged();
                     NotifyPropertyChanged(nameof(FormattedValue)); 
                 }
@@ -76,7 +82,10 @@ namespace ModbusTerm.Models
                 if (_editableValue != value)
                 {
                     _editableValue = value;
-                    NotifyPropertyChanged();
+                    
+                    // Always notify for EditableValue changes regardless of suppression setting
+                    // This ensures updates from external writes always show in UI
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditableValue)));
                     
                     // Set flag to prevent Value setter from overwriting our input
                     _editingInProgress = true;
@@ -402,10 +411,48 @@ namespace ModbusTerm.Models
         }
         
         /// <summary>
+        /// Gets or sets whether property change notifications should be suppressed
+        /// </summary>
+        public bool SuppressNotifications
+        {
+            get => _suppressNotifications;
+            set => _suppressNotifications = value;
+        }
+        
+        /// <summary>
+        /// Gets or sets whether this register was recently modified by an external Modbus master
+        /// Used for highlighting in the UI
+        /// </summary>
+        public bool IsRecentlyModified
+        {
+            get => _isRecentlyModified;
+            set
+            {
+                if (_isRecentlyModified != value)
+                {
+                    _isRecentlyModified = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
         /// Raises the PropertyChanged event
         /// </summary>
         /// <param name="propertyName">Name of the property that changed</param>
         protected void NotifyPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            if (!_suppressNotifications)
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            }
+        }
+        
+        /// <summary>
+        /// Forces a PropertyChanged event regardless of SuppressNotifications setting
+        /// </summary>
+        /// <param name="propertyName">Name of the property to force notification for</param>
+        public void ForcePropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }

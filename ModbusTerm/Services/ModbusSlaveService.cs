@@ -27,7 +27,7 @@ namespace ModbusTerm.Services
         private bool _isMaster = false;
         private readonly byte _slaveId = 1;
         private CancellationTokenSource? _cancellationTokenSource;
-        private ISlaveDataStore? _dataStore;
+        private NotifyingSlaveDataStore? _dataStore;
         private ConnectionParameters? _currentParameters;
         private Dictionary<ushort, ushort> _registerValues = new Dictionary<ushort, ushort>();
 
@@ -35,6 +35,11 @@ namespace ModbusTerm.Services
         /// Event raised when a communication event occurs
         /// </summary>
         public event EventHandler<CommunicationEvent>? CommunicationEventOccurred;
+        
+        /// <summary>
+        /// Event raised when a holding register is changed by an external Modbus master
+        /// </summary>
+        public event EventHandler<RegisterChangedEventArgs>? RegisterChanged;
 
         /// <summary>
         /// Gets whether the connection is currently open
@@ -45,6 +50,24 @@ namespace ModbusTerm.Services
         /// Gets whether the service is in master mode
         /// </summary>
         public bool IsMaster => _isMaster;
+
+        /// <summary>
+        /// Handle holding register changes from external Modbus masters
+        /// </summary>
+        /// <param name="sender">The object that raised the event</param>
+        /// <param name="e">Event arguments with register addresses and values</param>
+        private void DataStore_HoldingRegisterChanged(object? sender, RegisterChangedEventArgs e)
+        {
+            // Forward the event to any subscribers
+            RegisterChanged?.Invoke(this, e);
+            
+            // Log the change event
+            var addresses = string.Join(", ", Enumerable.Range(e.StartAddress, e.Values.Length)
+                .Select(a => a.ToString()));
+                
+            RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                $"Holding register(s) {addresses} modified by external Modbus master"));
+        }
 
         /// <summary>
         /// Gets the holding register definitions for slave mode
@@ -62,7 +85,8 @@ namespace ModbusTerm.Services
         public ModbusSlaveService()
         {
             // Initialize with empty register collection and data store
-            _dataStore = new DefaultSlaveDataStore();
+            _dataStore = new NotifyingSlaveDataStore();
+            _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
             InitializeRegisters();
         }
 
@@ -113,8 +137,11 @@ namespace ModbusTerm.Services
 
             try
             {
-                // Create Modbus data store with default tables
-                _dataStore = new DefaultSlaveDataStore();
+                // Create Modbus data store with notification support
+                _dataStore = new NotifyingSlaveDataStore();
+                
+                // Subscribe to register change events
+                _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
                 
                 // Initialize registers with defined values
                 InitializeRegisters();
@@ -195,8 +222,11 @@ namespace ModbusTerm.Services
 
             try
             {
-                // Create Modbus data store with default tables
-                _dataStore = new DefaultSlaveDataStore();
+                // Create Modbus data store with notification support
+                _dataStore = new NotifyingSlaveDataStore();
+                
+                // Subscribe to register change events
+                _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
                 
                 // Initialize registers with defined values
                 InitializeRegisters();
@@ -420,8 +450,26 @@ namespace ModbusTerm.Services
                     }
                 }
                 
-                // Update the register in the data store using WritePoints method
-                _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
+                // Temporarily suppress notifications for internal updates
+                if (_dataStore.HoldingRegisters is NotifyingPointSource<ushort> notifyingSource)
+                {
+                    notifyingSource.SuppressNotifications = true;
+                    try
+                    {
+                        // Update the register in the data store using WritePoints method
+                        _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
+                    }
+                    finally
+                    {
+                        // Make sure we re-enable notifications
+                        notifyingSource.SuppressNotifications = false;
+                    }
+                }
+                else
+                {
+                    // If not a notifying source (shouldn't happen), just call directly
+                    _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
+                }
                 
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated holding register {register.Address} to {register.FormattedValue}"));
             }
@@ -463,8 +511,26 @@ namespace ModbusTerm.Services
                     }
                 }
                 
-                // Update the register in the data store using WritePoints method
-                _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
+                // Temporarily suppress notifications for internal updates
+                if (_dataStore.InputRegisters is NotifyingPointSource<ushort> notifyingSource)
+                {
+                    notifyingSource.SuppressNotifications = true;
+                    try
+                    {
+                        // Update the register in the data store using WritePoints method
+                        _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
+                    }
+                    finally
+                    {
+                        // Make sure we re-enable notifications
+                        notifyingSource.SuppressNotifications = false;
+                    }
+                }
+                else
+                {
+                    // If not a notifying source (shouldn't happen), just call directly
+                    _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
+                }
                 
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated input register {register.Address} to {register.FormattedValue}"));
             }

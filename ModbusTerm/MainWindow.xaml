@@ -22,6 +22,34 @@
         <converters:StopBitsConverter x:Key="StopBitsConverter" />
         <helpers:ModbusDataTypeConverter x:Key="ModbusDataTypeConverter"/>
         
+        <!-- Custom DataGridRow style with orange selection -->
+        <Style x:Key="CustomDataGridRowStyle" TargetType="DataGridRow">
+            <!-- Base style -->
+            <Setter Property="Background" Value="Transparent" />
+            <Style.Triggers>
+                <!-- Normal selection (not modified) - light orange -->
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FFE2C0" />
+                </Trigger>
+                
+                <!-- Modified but not selected - light green -->
+                <DataTrigger Binding="{Binding IsRecentlyModified}" Value="True">
+                    <Setter Property="Background" Value="#D5F5D5" />
+                    <Setter Property="FontWeight" Value="Bold" />
+                </DataTrigger>
+                
+                <!-- Both selected AND modified - darker green -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsRecentlyModified}" Value="True" />
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#B8E2B8" />
+                    <Setter Property="FontWeight" Value="Bold" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        
         <!-- Common Button Style -->
         <Style x:Key="StandardButtonStyle" TargetType="Button">
             <Setter Property="Padding" Value="10,5" />
@@ -511,7 +539,31 @@
                                            ItemsSource="{Binding RegisterDefinitions}"
                                            SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
                                            CanUserAddRows="False"
-                                           Style="{StaticResource ModernDataGridStyle}">
+                                           Style="{StaticResource ModernDataGridStyle}"
+                                           RowStyle="{StaticResource CustomDataGridRowStyle}">
+                                    <DataGrid.Resources>
+                                        <!-- Style for highlighting recently modified registers -->
+                                        <Style TargetType="DataGridRow">
+                                            <!-- Default style setters -->
+                                            <Style.Triggers>
+                                                <!-- Handle non-selected, modified rows -->
+                                                <DataTrigger Binding="{Binding IsRecentlyModified}" Value="True">
+                                                    <Setter Property="Background" Value="#FFFFCC" /> <!-- Light yellow highlight -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                                
+                                                <!-- Handle selected, modified rows -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsRecentlyModified}" Value="True" />
+                                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#FFF6A0" /> <!-- Darker yellow for selected+highlighted -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.Resources>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
                                         <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
@@ -564,7 +616,31 @@
                                            ItemsSource="{Binding InputRegisterDefinitions}"
                                            SelectedItem="{Binding SelectedInputRegister, Mode=TwoWay}"
                                            CanUserAddRows="False"
-                                           Style="{StaticResource ModernDataGridStyle}">
+                                           Style="{StaticResource ModernDataGridStyle}"
+                                           RowStyle="{StaticResource CustomDataGridRowStyle}">
+                                    <DataGrid.Resources>
+                                        <!-- Style for highlighting recently modified registers -->
+                                        <Style TargetType="DataGridRow">
+                                            <!-- Default style setters -->
+                                            <Style.Triggers>
+                                                <!-- Handle non-selected, modified rows -->
+                                                <DataTrigger Binding="{Binding IsRecentlyModified}" Value="True">
+                                                    <Setter Property="Background" Value="#FFFFCC" /> <!-- Light yellow highlight -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                                
+                                                <!-- Handle selected, modified rows -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsRecentlyModified}" Value="True" />
+                                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#FFF6A0" /> <!-- Darker yellow for selected+highlighted -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.Resources>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
                                         <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />

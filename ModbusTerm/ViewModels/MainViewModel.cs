@@ -1,16 +1,17 @@
+using Microsoft.Win32;
 using ModbusTerm.Helpers;
 using ModbusTerm.Models;
 using ModbusTerm.Services;
 using ModbusTerm.Views;
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -562,8 +563,149 @@ namespace ModbusTerm.ViewModels
                     notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
                 }
             }
+            
+            // Subscribe to external register changes from Modbus master devices
+            _slaveService.RegisterChanged += SlaveService_RegisterChanged;
         }
 
+        // For tracking timer to clear register highlights
+        private System.Windows.Threading.DispatcherTimer? _highlightTimer;
+        private List<RegisterDefinition> _highlightedRegisters = new List<RegisterDefinition>();
+        private const int HIGHLIGHT_DURATION_MS = 5000; // 5 seconds highlight duration
+        
+        /// <summary>
+        /// Handle external changes to holding registers from a Modbus master
+        /// </summary>
+        private void SlaveService_RegisterChanged(object? sender, RegisterChangedEventArgs e)
+        {
+            try
+            {
+                // Process on the UI thread since this comes from a background task
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    // First store previous highlighted registers to prevent race conditions
+                    var previouslyHighlightedRegisters = new List<RegisterDefinition>(_highlightedRegisters);
+                    _highlightedRegisters.Clear();
+                    
+                    // Store currently selected register to avoid highlight issue
+                    var currentlySelectedRegister = SelectedRegister;
+                    
+                    // Find the affected registers in our collection and update them
+                    var modifiedRegisters = new List<RegisterDefinition>();
+                    
+                    for (int i = 0; i < e.Values.Length; i++)
+                    {
+                        ushort address = (ushort)(e.StartAddress + i);
+                        var register = _slaveService.RegisterDefinitions.FirstOrDefault(r => r.Address == address);
+                        
+                        if (register != null)
+                        {
+                            // Directly update values with property notifications temporarily disabled
+                            register.SuppressNotifications = true;
+                            
+                            // Set the value without triggering immediate UI updates
+                            register.Value = e.Values[i];
+                            
+                            // Force EditableValue to show the updated value
+                            string newFormattedValue = register.FormattedValue;
+                            register.EditableValue = newFormattedValue;
+                            
+                            // Mark the register as modified for highlighting
+                            // Set this first before enabling notifications
+                            register.IsRecentlyModified = true;
+                            
+                            // Now restore notifications
+                            register.SuppressNotifications = false;
+                            
+                            // Force UI update through direct property notification - including IsRecentlyModified
+                            register.ForcePropertyChanged("Value");
+                            register.ForcePropertyChanged("EditableValue");
+                            register.ForcePropertyChanged("FormattedValue");
+                            register.ForcePropertyChanged("IsRecentlyModified");
+                            
+                            // Track highlighted registers
+                            _highlightedRegisters.Add(register);
+                            modifiedRegisters.Add(register);
+                            
+                            // Log the change
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"External master updated holding register {address} to {register.FormattedValue}"));
+                        }
+                        else
+                        {
+                            // This could happen if the master is writing to registers we don't have in our UI
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"External master updated unknown holding register at address {address} to {e.Values[i]}"));
+                        }
+                    }
+                    
+                    // Clear previous highlights that aren't in the new set
+                    foreach (var register in previouslyHighlightedRegisters)
+                    {
+                        if (!_highlightedRegisters.Contains(register))
+                        {
+                            register.IsRecentlyModified = false;
+                            register.ForcePropertyChanged("IsRecentlyModified"); // Ensure this change is noticed
+                        }
+                    }
+                    
+                    // Check if any register should be selected
+                    if (modifiedRegisters.Count > 0)
+                    {
+                        // Temporarily set selection to null to force update of selected item
+                        var registerToSelect = modifiedRegisters[0];
+                        SelectedRegister = null;
+                        
+                        // Delay selection to allow IsRecentlyModified to take effect
+                        App.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+                        {
+                            SelectedRegister = registerToSelect;
+                            
+                            // Force properties to update again after selection
+                            registerToSelect.ForcePropertyChanged("IsRecentlyModified");
+                        });
+                    }
+                    
+                    // Set up timer to clear highlights after delay
+                    if (_highlightTimer == null)
+                    {
+                        _highlightTimer = new System.Windows.Threading.DispatcherTimer
+                        {
+                            Interval = TimeSpan.FromMilliseconds(HIGHLIGHT_DURATION_MS)
+                        };
+                        _highlightTimer.Tick += HighlightTimer_Tick;
+                    }
+                    
+                    // Restart the timer
+                    _highlightTimer.Stop();
+                    _highlightTimer.Start();
+                });
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent(
+                    $"Error handling external register change: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Timer tick handler to clear highlights after delay
+        /// </summary>
+        private void HighlightTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_highlightTimer != null)
+            {
+                _highlightTimer.Stop();
+                
+                foreach (var register in _highlightedRegisters)
+                {
+                    register.IsRecentlyModified = false;
+                }
+                
+                _highlightedRegisters.Clear();
+            }
+        }
+        
         /// <summary>
         /// Handle communication events from the services
         /// </summary>
@@ -926,26 +1068,40 @@ namespace ModbusTerm.ViewModels
                     Value = 0,
                     Name = $"Register {nextAddress}",
                     Description = "New holding register",
-                    DataType = ModbusDataType.UInt16
+                    DataType = ModbusDataType.UInt16,
+                    // Ensure the new register doesn't have IsRecentlyModified set
+                    IsRecentlyModified = false
                 };
                 
-                // Add to the service's collection
-                _slaveService.RegisterDefinitions.Add(newRegister);
+                // Temporarily disable register changed notifications
+                bool oldSuppressNotifications = newRegister.SuppressNotifications;
+                newRegister.SuppressNotifications = true;
                 
-                // Hook up property change notification
-                if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                try
                 {
-                    notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                    // Add to the service's collection (this must happen first)
+                    _slaveService.RegisterDefinitions.Add(newRegister);
+                    
+                    // Hook up property change notification
+                    if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                    }
+                    
+                    // Update the service's data store
+                    _slaveService.UpdateRegisterValue(newRegister);
+                    
+                    // Select the new register
+                    SelectedRegister = newRegister;
+                    
+                    // Notify UI that registers collection has changed
+                    OnPropertyChanged(nameof(HasRegisters));
                 }
-                
-                // Update the service's data store
-                _slaveService.UpdateRegisterValue(newRegister);
-                
-                // Select the new register
-                SelectedRegister = newRegister;
-                
-                // Notify UI that registers collection has changed
-                OnPropertyChanged(nameof(HasRegisters));
+                finally
+                {
+                    // Restore the original notification state
+                    newRegister.SuppressNotifications = oldSuppressNotifications;
+                }
                 
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added holding register at address {nextAddress}"));
             }
