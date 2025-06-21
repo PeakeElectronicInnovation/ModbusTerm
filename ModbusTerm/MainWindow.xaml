@@ -105,7 +105,7 @@
                 </Grid.ColumnDefinitions>
                 
                 <!-- Connection Type -->
-                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,5,10,5">
+                <StackPanel x:Name="ConnectionTypePanel" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,5,10,5">
                     <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,10,0" />
                     <RadioButton Content="TCP" IsChecked="True" Margin="0,0,10,0" 
                                  Checked="RadioButton_Checked" Tag="TCP" />
@@ -134,7 +134,7 @@
                     
                     <TextBlock Grid.Column="0" Text="IP Address / Hostname:" VerticalAlignment="Center" Margin="0,0,5,0" />
                     <TextBox Grid.Column="1" Text="{Binding ConnectionParameters.IpAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                             Margin="0,0,10,0" />
+                             Margin="0,0,10,0" IsEnabled="{Binding IsMasterMode}" />
                     
                     <TextBlock Grid.Column="2" Text="Port:" VerticalAlignment="Center" Margin="0,0,5,0" />
                     <TextBox Grid.Column="3" Text="{Binding ConnectionParameters.Port, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
@@ -211,13 +211,13 @@
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                         <TextBlock Text="Profile:" VerticalAlignment="Center" Margin="0,0,5,0" />
                         <ComboBox Width="150" Margin="0,0,10,0" 
-                                  ItemsSource="{Binding ConnectionProfiles}" 
-                                  SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" />
-                        <Button Content="Save" Width="60" Margin="0,0,5,0"
+                                  ItemsSource="{Binding Profiles}" 
+                                  SelectedItem="{Binding SelectedProfileName, Mode=TwoWay}" />
+                        <Button Content="Save" Width="80" Margin="0,0,5,0"
                                 Command="{Binding SaveConnectionCommand}" Style="{StaticResource StandardButtonStyle}" />
-                        <Button Content="Load" Width="60"
-                                Command="{Binding LoadConnectionCommand}" 
-                                IsEnabled="{Binding HasSelectedProfile}" Style="{StaticResource StandardButtonStyle}" />
+                        <Button Content="Remove" Width="80"
+                                Command="{Binding RemoveProfileCommand}" 
+                                Style="{StaticResource StandardButtonStyle}" />
                     </StackPanel>
                     
                     <!-- Connect/Disconnect buttons -->

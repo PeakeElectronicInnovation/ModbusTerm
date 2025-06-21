@@ -165,5 +165,19 @@ namespace ModbusTerm.Models
                 Message = message
             };
         }
+        
+        /// <summary>
+        /// Creates a warning event with the specified message
+        /// </summary>
+        /// <param name="message">The warning message</param>
+        /// <returns>A new CommunicationEvent</returns>
+        public static CommunicationEvent CreateWarningEvent(string message)
+        {
+            return new CommunicationEvent
+            {
+                Type = EventType.Info, // Using Info type since there's no Warning type
+                Message = $"⚠️ {message}" // Prefixing with warning emoji
+            };
+        }
     }
 }

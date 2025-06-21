@@ -18,7 +18,7 @@ namespace ModbusTerm.Models
         /// <summary>
         /// Gets or sets the connection name/profile name
         /// </summary>
-        public string ProfileName { get; set; } = "Default Connection";
+        public string ProfileName { get; set; } = "Default Profile";
     }
 
     /// <summary>

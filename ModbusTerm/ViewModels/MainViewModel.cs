@@ -1,10 +1,13 @@
 using ModbusTerm.Helpers;
 using ModbusTerm.Models;
 using ModbusTerm.Services;
+using ModbusTerm.Views;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -18,11 +21,16 @@ namespace ModbusTerm.ViewModels
     /// </summary>
     public class MainViewModel : ViewModelBase
     {
+        private const string PROFILE_FILE_EXTENSION = "json";
+        private const string PROFILE_FILE_FILTER = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
         private readonly IModbusService _masterService;
         private readonly ModbusSlaveService _slaveService;
+        private readonly ProfileService _profileService;
         private IModbusService? _currentService;
         private ConnectionParameters _connectionParameters;
         private bool _isConnected;
+        private ObservableCollection<string> _profiles = new ObservableCollection<string>();
+        private string _selectedProfileName = "Default Profile";
         private bool _isMasterMode = true;
         private ModbusFunctionParameters _currentRequest;
         private ModbusResponseInfo? _lastResponse;
@@ -75,9 +83,9 @@ namespace ModbusTerm.ViewModels
         public RelayCommand SaveConnectionCommand { get; }
 
         /// <summary>
-        /// Command to load connection parameters
+        /// Command to remove the selected profile
         /// </summary>
-        public RelayCommand LoadConnectionCommand { get; }
+        public RelayCommand RemoveProfileCommand { get; }
 
         /// <summary>
         /// Gets the command to add a new write data item
@@ -197,7 +205,36 @@ namespace ModbusTerm.ViewModels
         public ConnectionParameters ConnectionParameters
         {
             get => _connectionParameters;
-            set => SetProperty(ref _connectionParameters, value);
+            set
+            {
+                if (SetProperty(ref _connectionParameters, value))
+                {
+                    // Update selected profile name
+                    _selectedProfileName = value?.ProfileName ?? "Default Profile";
+                    OnPropertyChanged(nameof(SelectedProfileName));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets the available profiles
+        /// </summary>
+        public ObservableCollection<string> Profiles => _profiles;
+        
+        /// <summary>
+        /// Gets or sets the selected profile name
+        /// </summary>
+        public string SelectedProfileName
+        {
+            get => _selectedProfileName;
+            set
+            {
+                if (SetProperty(ref _selectedProfileName, value) && value != null)
+                {
+                    // Load the selected profile
+                    LoadProfileAsync(value);
+                }
+            }
         }
 
         /// <summary>
@@ -365,6 +402,7 @@ namespace ModbusTerm.ViewModels
             // Create services
             _masterService = new ModbusMasterService();
             _slaveService = new ModbusSlaveService();
+            _profileService = new ProfileService();
 
             // Subscribe to events
             _masterService.CommunicationEventOccurred += OnCommunicationEvent;
@@ -381,15 +419,19 @@ namespace ModbusTerm.ViewModels
                 StartAddress = 0,
                 Quantity = 10
             };
-
-            // Initialize commands
-            ConnectCommand = new RelayCommand(async _ => await ConnectAsync(), _ => !IsConnected);
-            DisconnectCommand = new RelayCommand(async _ => await DisconnectAsync(), _ => IsConnected);
-            SendRequestCommand = new RelayCommand(async _ => await SendRequestAsync(), _ => IsConnected && IsMasterMode);
-            ClearEventsCommand = new RelayCommand(_ => ClearEvents());
-            ExportEventsCommand = new RelayCommand(_ => ExportEvents(), _ => CommunicationEvents.Count > 0);
+            
+            // Initialize connection commands
+            ConnectCommand = new RelayCommand(_ => _ = ConnectAsync(), _ => !IsConnected);
+            DisconnectCommand = new RelayCommand(_ => _ = DisconnectAsync(), _ => IsConnected);
+            SendRequestCommand = new RelayCommand(_ => _ = SendRequestAsync(), _ => IsConnected && IsMasterMode);
+            ClearEventsCommand = new RelayCommand(_ => CommunicationEvents.Clear());
+            ExportEventsCommand = new RelayCommand(_ => ExportEvents());
             SaveConnectionCommand = new RelayCommand(_ => SaveConnection());
-            LoadConnectionCommand = new RelayCommand(_ => LoadConnection());
+            RemoveProfileCommand = new RelayCommand(_ => RemoveProfile(), _ => !string.IsNullOrEmpty(SelectedProfileName) && SelectedProfileName != "Default Profile");
+            
+            // Load profiles and default profile
+            LoadProfilesAsync();
+            LoadProfileAsync("Default Profile");
             
             // Initialize write data item commands
             _addWriteDataItemCommand = new RelayCommand(_ => AddWriteDataItem(), _ => IsMultipleWriteFunction);
@@ -647,23 +689,7 @@ namespace ModbusTerm.ViewModels
             CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Export log functionality not yet implemented"));
         }
 
-        /// <summary>
-        /// Save connection parameters to a profile
-        /// </summary>
-        private void SaveConnection()
-        {
-            // Implementation would use a file dialog and save the connection parameters
-            CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Save connection profile functionality not yet implemented"));
-        }
-
-        /// <summary>
-        /// Load connection parameters from a profile
-        /// </summary>
-        private void LoadConnection()
-        {
-            // Implementation would use a file dialog and load the connection parameters
-            CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Load connection profile functionality not yet implemented"));
-        }
+        // SaveConnection and LoadConnection methods are implemented elsewhere
 
         /// <summary>
         /// Change the connection type
@@ -1532,6 +1558,217 @@ namespace ModbusTerm.ViewModels
             }
         }
 
+        /// <summary>
+        /// Loads the list of available profiles
+        /// </summary>
+        private async void LoadProfilesAsync()
+        {
+            try
+            {
+                // Clear current profiles
+                _profiles.Clear();
+                
+                // Get profiles from service
+                var profileNames = await _profileService.GetProfileNamesAsync();
+                
+                // Add to collection
+                foreach (var name in profileNames)
+                {
+                    _profiles.Add(name);
+                }
+                
+                // Set selected profile
+                if (_profiles.Count > 0 && string.IsNullOrEmpty(_selectedProfileName))
+                {
+                    _selectedProfileName = "Default Profile";
+                    OnPropertyChanged(nameof(SelectedProfileName));
+                }
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to load profiles: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Loads a profile by name
+        /// </summary>
+        private async void LoadProfileAsync(string profileName)
+        {
+            if (string.IsNullOrEmpty(profileName))
+                return;
+                
+            try
+            {
+                // Check if we're currently connected
+                if (IsConnected)
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateWarningEvent("Please disconnect before loading a profile"));
+                    return;
+                }
+                
+                // Load the profile
+                ConnectionParameters? loadedParameters = await _profileService.LoadProfileAsync(profileName);
+                
+                if (loadedParameters != null)
+                {
+                    // Store the connection type before updating parameters
+                    ConnectionType previousType = ConnectionParameters?.Type ?? ConnectionType.TCP;
+                    ConnectionType newType = loadedParameters.Type;
+                    
+                    // Update the current parameters
+                    ConnectionParameters = loadedParameters;
+                    
+                    // Update UI mode based on loaded parameters
+                    IsMasterMode = loadedParameters.IsMaster;
+
+                    // If connection type changed, raise property changed to update UI
+                    if (previousType != newType)
+                    {
+                        // This will be handled by the ViewModel_PropertyChanged event in MainWindow
+                        OnPropertyChanged(nameof(ConnectionParameters));
+                        CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Changed connection type to {newType}"));
+                    }
+                    
+                    CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Connection profile '{loadedParameters.ProfileName}' loaded successfully"));
+                }
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to load connection profile '{profileName}': {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Saves the current connection parameters to a JSON file
+        /// </summary>
+        private async void SaveConnection()
+        {
+            try
+            {
+                // Make sure we have valid connection parameters
+                if (ConnectionParameters == null)
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent("No connection parameters to save"));
+                    return;
+                }
+                
+                // Show input dialog for profile name
+                var inputDialog = new InputDialogWindow
+                {
+                    Title = "Save Profile",
+                    Message = "Enter a name for this profile:",
+                    Input = ConnectionParameters.ProfileName
+                };
+                
+                if (inputDialog.ShowDialog() == true)
+                {
+                    string profileName = inputDialog.Input.Trim();
+                    
+                    // Check if name is valid
+                    if (string.IsNullOrEmpty(profileName))
+                    {
+                        CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent("Profile name cannot be empty"));
+                        return;
+                    }
+                    
+                    // Check if profile already exists (except for Default Profile which can be overwritten)
+                    if (_profiles.Contains(profileName) && profileName != "Default Profile")
+                    {
+                        // Show confirmation dialog
+                        var result = System.Windows.MessageBox.Show(
+                            $"A profile named '{profileName}' already exists. Do you want to overwrite it?",
+                            "Confirm Overwrite",
+                            System.Windows.MessageBoxButton.YesNo,
+                            System.Windows.MessageBoxImage.Warning);
+                            
+                        if (result != System.Windows.MessageBoxResult.Yes)
+                            return;
+                    }
+                    
+                    // Save the profile
+                    bool success = await _profileService.SaveProfileAsync(ConnectionParameters, profileName);
+                    
+                    if (success)
+                    {
+                        // Update profile name in parameters
+                        ConnectionParameters.ProfileName = profileName;
+                        
+                        // Add to profiles list if it's not there
+                        if (!_profiles.Contains(profileName))
+                        {
+                            _profiles.Add(profileName);
+                        }
+                        
+                        // Update selected profile
+                        _selectedProfileName = profileName;
+                        OnPropertyChanged(nameof(SelectedProfileName));
+                        
+                        CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Connection profile '{profileName}' saved successfully"));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to save connection profile: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Removes the currently selected profile
+        /// </summary>
+        private async void RemoveProfile()
+        {
+            try
+            {
+                // Don't allow removing the Default Profile
+                if (string.IsNullOrEmpty(SelectedProfileName) || SelectedProfileName == "Default Profile")
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateWarningEvent("Cannot remove the Default Profile"));
+                    return;
+                }
+                
+                // Don't allow removing a profile while connected
+                if (IsConnected)
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateWarningEvent("Please disconnect before removing a profile"));
+                    return;
+                }
+                
+                // Ask for confirmation
+                var result = System.Windows.MessageBox.Show(
+                    $"Are you sure you want to remove the profile '{SelectedProfileName}'?",
+                    "Confirm Profile Removal",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Question);
+                
+                if (result != System.Windows.MessageBoxResult.Yes)
+                    return;
+                
+                // Delete the profile
+                bool success = await _profileService.DeleteProfileAsync(SelectedProfileName);
+                
+                if (success)
+                {
+                    // Remove from profiles collection
+                    _profiles.Remove(SelectedProfileName);
+                    
+                    // Load the default profile
+                    SelectedProfileName = "Default Profile";
+                    
+                    CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Profile '{SelectedProfileName}' removed successfully"));
+                }
+                else
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to remove profile '{SelectedProfileName}'"));
+                }
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Error removing profile: {ex.Message}"));
+            }
+        }
+        
         /// <summary>
         /// Create a new read function request based on the selected function code
         /// </summary>

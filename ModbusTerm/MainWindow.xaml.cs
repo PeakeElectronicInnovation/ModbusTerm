@@ -41,6 +41,9 @@ public partial class MainWindow : Window
         
         // Subscribe to collection changed events for auto-scrolling
         _viewModel.CommunicationEvents.CollectionChanged += CommunicationEvents_CollectionChanged;
+        
+        // Subscribe to property changed events for connection parameters
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
     }
     
     /// <summary>
@@ -56,7 +59,7 @@ public partial class MainWindow : Window
         if (sender is RadioButton radioButton)
         {
             // Get the connection type from the radio button tag
-            var connectionType = radioButton.Tag.ToString();
+            var connectionType = radioButton.Tag?.ToString() ?? string.Empty;
             
             // Show the appropriate parameter panel
             if (connectionType == "TCP")
@@ -93,7 +96,7 @@ public partial class MainWindow : Window
         if (sender is RadioButton radioButton)
         {
             // Get the mode from the radio button tag
-            var mode = radioButton.Tag.ToString();
+            var mode = radioButton.Tag?.ToString() ?? string.Empty;
             
             // Update UI based on the mode
             UpdateUIForMode(mode == "Master");
@@ -245,5 +248,42 @@ public partial class MainWindow : Window
         }
         
         return null;
+    }
+    
+    /// <summary>
+    /// Event handler for property changes in the view model
+    /// </summary>
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Handle connection parameters change to update UI accordingly
+        if (e.PropertyName == nameof(MainViewModel.ConnectionParameters))
+        {
+            // Update connection type radio buttons based on loaded connection parameters
+            if (_viewModel.ConnectionParameters != null)
+            {
+                // Find the connection type radio buttons by iterating through the children
+                foreach (UIElement element in ConnectionTypePanel.Children)
+                {
+                    if (element is RadioButton radioButton && radioButton.Tag != null)
+                    {
+                        string buttonType = radioButton.Tag?.ToString() ?? string.Empty;
+                        
+                        // Check if this radio button matches the connection parameters type
+                        if (_viewModel.ConnectionParameters is TcpConnectionParameters && buttonType == "TCP")
+                        {
+                            radioButton.IsChecked = true;
+                            // The RadioButton_Checked event will handle updating panels
+                            break;
+                        }
+                        else if (_viewModel.ConnectionParameters is RtuConnectionParameters && buttonType == "RTU")
+                        {
+                            radioButton.IsChecked = true;
+                            // The RadioButton_Checked event will handle updating panels
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
