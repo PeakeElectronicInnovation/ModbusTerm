@@ -52,6 +52,16 @@ namespace ModbusTerm.ViewModels
         private ICommand _importRegistersCommand;
         private ICommand _exportRegistersCommand;
 
+        // Input register management
+        private RegisterDefinition? _selectedInputRegister;
+        private ICommand _addInputRegisterCommand;
+        private ICommand _removeInputRegisterCommand;
+        private ICommand _clearInputRegistersCommand;
+        private ICommand _editInputRegisterCommand;
+        private ICommand _importInputRegistersCommand;
+        private ICommand _exportInputRegistersCommand;
+        private bool _showInputRegisters = false;
+
         /// <summary>
         /// Command to connect to a Modbus device
         /// </summary>
@@ -129,39 +139,103 @@ namespace ModbusTerm.ViewModels
         public bool HasSelectedRegister => SelectedRegister != null;
         
         /// <summary>
-        /// Gets whether there are registers defined
+        /// Gets whether there are holding registers defined
         /// </summary>
         public bool HasRegisters => _slaveService.RegisterDefinitions.Count > 0;
+
+        /// <summary>
+        /// Gets whether there are input registers defined
+        /// </summary>
+        public bool HasInputRegisters => _slaveService.InputRegisterDefinitions.Count > 0;
         
         /// <summary>
-        /// Gets the command to add a new register in slave mode
+        /// Gets the command to add a new holding register in slave mode
         /// </summary>
         public ICommand AddRegisterCommand => _addRegisterCommand;
         
         /// <summary>
-        /// Gets the command to remove a register in slave mode
+        /// Gets the command to remove a holding register in slave mode
         /// </summary>
         public ICommand RemoveRegisterCommand => _removeRegisterCommand;
         
         /// <summary>
-        /// Gets the command to clear all registers in slave mode
+        /// Gets the command to clear all holding registers in slave mode
         /// </summary>
         public ICommand ClearRegistersCommand => _clearRegistersCommand;
         
         /// <summary>
-        /// Gets the command to edit a register in slave mode
+        /// Gets the command to edit a holding register in slave mode
         /// </summary>
         public ICommand EditRegisterCommand => _editRegisterCommand;
         
         /// <summary>
-        /// Gets the command to import registers from a file
+        /// Gets the command to import holding registers from a file
         /// </summary>
         public ICommand ImportRegistersCommand => _importRegistersCommand;
         
         /// <summary>
-        /// Gets the command to export registers to a file
+        /// Gets the command to export holding registers to a file
         /// </summary>
         public ICommand ExportRegistersCommand => _exportRegistersCommand;
+
+        /// <summary>
+        /// Gets or sets the selected input register in slave mode
+        /// </summary>
+        public RegisterDefinition? SelectedInputRegister
+        {
+            get => _selectedInputRegister;
+            set
+            {
+                if (SetProperty(ref _selectedInputRegister, value))
+                {
+                    OnPropertyChanged(nameof(HasSelectedInputRegister));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets whether there is a selected input register
+        /// </summary>
+        public bool HasSelectedInputRegister => SelectedInputRegister != null;
+
+        /// <summary>
+        /// Gets or sets whether to show input registers tab
+        /// </summary>
+        public bool ShowInputRegisters
+        {
+            get => _showInputRegisters;
+            set => SetProperty(ref _showInputRegisters, value);
+        }
+
+        /// <summary>
+        /// Gets the command to add a new input register in slave mode
+        /// </summary>
+        public ICommand AddInputRegisterCommand => _addInputRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to remove an input register in slave mode
+        /// </summary>
+        public ICommand RemoveInputRegisterCommand => _removeInputRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to clear all input registers in slave mode
+        /// </summary>
+        public ICommand ClearInputRegistersCommand => _clearInputRegistersCommand;
+        
+        /// <summary>
+        /// Gets the command to edit an input register in slave mode
+        /// </summary>
+        public ICommand EditInputRegisterCommand => _editInputRegisterCommand;
+        
+        /// <summary>
+        /// Gets the command to import input registers from a file
+        /// </summary>
+        public ICommand ImportInputRegistersCommand => _importInputRegistersCommand;
+        
+        /// <summary>
+        /// Gets the command to export input registers to a file
+        /// </summary>
+        public ICommand ExportInputRegistersCommand => _exportInputRegistersCommand;
 
         /// <summary>
         /// Gets or sets whether the connection is established
@@ -390,9 +464,14 @@ namespace ModbusTerm.ViewModels
         public ObservableCollection<CommunicationEvent> CommunicationEvents { get; } = new ObservableCollection<CommunicationEvent>();
 
         /// <summary>
-        /// Gets the register definitions for slave mode
+        /// Gets the holding register definitions for slave mode
         /// </summary>
         public ObservableCollection<RegisterDefinition> RegisterDefinitions => _slaveService.RegisterDefinitions;
+
+        /// <summary>
+        /// Gets the input register definitions for slave mode
+        /// </summary>
+        public ObservableCollection<RegisterDefinition> InputRegisterDefinitions => _slaveService.InputRegisterDefinitions;
 
         /// <summary>
         /// Constructor
@@ -440,7 +519,7 @@ namespace ModbusTerm.ViewModels
                 parameter => IsMultipleWriteFunction && _writeDataInputs.Count > 1);
             _removeLastWriteDataItemCommand = new RelayCommand(_ => RemoveLastWriteDataItem(), _ => CanRemoveLastWriteDataItem());
             
-            // Initialize register management commands
+            // Initialize holding register management commands
             _addRegisterCommand = new RelayCommand(_ => AddRegister(), _ => IsSlaveMode);
             _removeRegisterCommand = new RelayCommand(_ => RemoveRegister(), _ => IsSlaveMode && HasSelectedRegister);
             _clearRegistersCommand = new RelayCommand(_ => ClearRegisters(), _ => IsSlaveMode && HasRegisters);
@@ -448,11 +527,23 @@ namespace ModbusTerm.ViewModels
             _importRegistersCommand = new RelayCommand(_ => ImportRegisters(), _ => IsSlaveMode);
             _exportRegistersCommand = new RelayCommand(_ => ExportRegisters(), _ => IsSlaveMode && HasRegisters);
             
+            // Initialize input register management commands
+            _addInputRegisterCommand = new RelayCommand(_ => AddInputRegister(), _ => IsSlaveMode);
+            _removeInputRegisterCommand = new RelayCommand(_ => RemoveInputRegister(), _ => IsSlaveMode && HasSelectedInputRegister);
+            _clearInputRegistersCommand = new RelayCommand(_ => ClearInputRegisters(), _ => IsSlaveMode && HasInputRegisters);
+            _editInputRegisterCommand = new RelayCommand(_ => EditInputRegister(), _ => IsSlaveMode && HasSelectedInputRegister);
+            _importInputRegistersCommand = new RelayCommand(_ => ImportInputRegisters(), _ => IsSlaveMode);
+            _exportInputRegistersCommand = new RelayCommand(_ => ExportInputRegisters(), _ => IsSlaveMode && HasInputRegisters);
+            
+            // Default showing input registers to true
+            _showInputRegisters = true;
+            
             // Initialize data types for slave mode registers
             InitializeDataTypes();
             
             // Set up event handler for register value changes
             _slaveService.RegisterDefinitions.CollectionChanged += RegisterDefinitions_CollectionChanged;
+            _slaveService.InputRegisterDefinitions.CollectionChanged += InputRegisterDefinitions_CollectionChanged;
             
             // Hook up property changed events to existing registers
             foreach (var register in _slaveService.RegisterDefinitions)
@@ -460,6 +551,15 @@ namespace ModbusTerm.ViewModels
                 if (register is INotifyPropertyChanged notifyPropertyChanged)
                 {
                     notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                }
+            }
+            
+            // Hook up property changed events to existing input registers
+            foreach (var register in _slaveService.InputRegisterDefinitions)
+            {
+                if (register is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
                 }
             }
         }
@@ -805,7 +905,7 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
-        /// Add a new register to the slave register collection
+        /// Add a new holding register to the slave register collection
         /// </summary>
         private void AddRegister()
         {
@@ -825,22 +925,206 @@ namespace ModbusTerm.ViewModels
                     Address = nextAddress,
                     Value = 0,
                     Name = $"Register {nextAddress}",
-                    Description = "New register",
+                    Description = "New holding register",
                     DataType = ModbusDataType.UInt16
                 };
                 
                 // Add to the service's collection
-                _slaveService.AddRegister(newRegister);
+                _slaveService.RegisterDefinitions.Add(newRegister);
+                
+                // Hook up property change notification
+                if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
+                }
+                
+                // Update the service's data store
+                _slaveService.UpdateRegisterValue(newRegister);
                 
                 // Select the new register
                 SelectedRegister = newRegister;
                 
                 // Notify UI that registers collection has changed
                 OnPropertyChanged(nameof(HasRegisters));
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added holding register at address {nextAddress}"));
             }
             catch (Exception ex)
             {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add register: {ex.Message}"));
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add holding register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Add a new input register to the slave register collection
+        /// </summary>
+        private void AddInputRegister()
+        {
+            try
+            {
+                // Find the next available address
+                ushort nextAddress = 0;
+                if (_slaveService.InputRegisterDefinitions.Count > 0)
+                {
+                    var last = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).Last();
+                    nextAddress = (ushort)(last.Address + last.RegisterCount);
+                }
+                
+                // Create a new register with default values
+                var newRegister = new RegisterDefinition
+                {
+                    Address = nextAddress,
+                    Value = 0,
+                    Name = $"Input {nextAddress}",
+                    Description = "New input register",
+                    DataType = ModbusDataType.UInt16
+                };
+                
+                // Add to the service's collection
+                _slaveService.InputRegisterDefinitions.Add(newRegister);
+                
+                // Hook up property change notification
+                if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
+                }
+                
+                // Update the service's data store
+                _slaveService.UpdateInputRegisterValue(newRegister);
+                
+                // Select the new register
+                SelectedInputRegister = newRegister;
+                
+                // Notify UI that input registers collection has changed
+                OnPropertyChanged(nameof(HasInputRegisters));
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added input register at address {nextAddress}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add input register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Remove the selected input register from the slave input register collection
+        /// </summary>
+        private void RemoveInputRegister()
+        {
+            if (SelectedInputRegister == null) return;
+            
+            try
+            {
+                // Keep a reference to remove
+                var registerToRemove = SelectedInputRegister;
+                
+                // Clear selection first to avoid any issues
+                SelectedInputRegister = null;
+                
+                // Remove from service
+                _slaveService.InputRegisterDefinitions.Remove(registerToRemove);
+                
+                // Unhook property change notification
+                if (registerToRemove is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged -= InputRegister_PropertyChanged;
+                }
+                
+                // Notify UI
+                OnPropertyChanged(nameof(HasInputRegisters));
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Removed input register at address {registerToRemove.Address}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to remove input register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Clear all input registers from the slave input register collection
+        /// </summary>
+        private void ClearInputRegisters()
+        {
+            try
+            {
+                // Clear selection first
+                SelectedInputRegister = null;
+                
+                // Clear the collection
+                var registers = _slaveService.InputRegisterDefinitions.ToList();
+                foreach (var register in registers)
+                {
+                    // Unhook property change notification
+                    if (register is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged -= InputRegister_PropertyChanged;
+                    }
+                    
+                    _slaveService.InputRegisterDefinitions.Remove(register);
+                }
+                
+                // Notify UI
+                OnPropertyChanged(nameof(HasInputRegisters));
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("All input registers cleared"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to clear input registers: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Edit the currently selected input register
+        /// </summary>
+        private void EditInputRegister()
+        {
+            if (SelectedInputRegister == null) return;
+            
+            // In this simple implementation, we just ensure the register data is updated in the datastore
+            try
+            {
+                _slaveService.UpdateInputRegisterValue(SelectedInputRegister);
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Updated input register at address {SelectedInputRegister.Address}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update input register: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Import input registers from a file
+        /// </summary>
+        private void ImportInputRegisters()
+        {
+            try
+            {
+                // For now, this is just a placeholder
+                // In a real implementation, this would open a file dialog and import registers from a CSV or JSON file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Input register import not implemented yet"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import input registers: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Export input registers to a file
+        /// </summary>
+        private void ExportInputRegisters()
+        {
+            try
+            {
+                // For now, this is just a placeholder
+                // In a real implementation, this would open a file dialog and export registers to a CSV or JSON file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Input register export not implemented yet"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export input registers: {ex.Message}"));
             }
         }
         
@@ -1007,6 +1291,39 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
+        /// Handle collection changes in the InputRegisterDefinitions collection
+        /// </summary>
+        private void InputRegisterDefinitions_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                // Handle added input registers
+                foreach (RegisterDefinition newRegister in e.NewItems)
+                {
+                    if (newRegister is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
+                    }
+                }
+            }
+            
+            if (e.OldItems != null)
+            {
+                // Handle removed input registers
+                foreach (RegisterDefinition oldRegister in e.OldItems)
+                {
+                    if (oldRegister is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged -= InputRegister_PropertyChanged;
+                    }
+                }
+            }
+            
+            // Notify UI properties that depend on register count
+            OnPropertyChanged(nameof(HasInputRegisters));
+        }
+        
+        /// <summary>
         /// Handle property changes in RegisterDefinition objects
         /// </summary>
         private void Register_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1022,6 +1339,26 @@ namespace ModbusTerm.ViewModels
                 {
                     // Log the error but don't crash
                     OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update register {register.Address}: {ex.Message}"));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Handle property changes in InputRegisterDefinition objects
+        /// </summary>
+        private void InputRegister_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // When an input register property changes, update the value in the Modbus data store
+            if (sender is RegisterDefinition register && (e.PropertyName == nameof(RegisterDefinition.Value) || e.PropertyName == nameof(RegisterDefinition.DataType)))
+            {
+                try
+                {
+                    _slaveService.UpdateInputRegisterValue(register);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't crash
+                    OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update input register {register.Address}: {ex.Message}"));
                 }
             }
         }

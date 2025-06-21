@@ -47,9 +47,14 @@ namespace ModbusTerm.Services
         public bool IsMaster => _isMaster;
 
         /// <summary>
-        /// Gets the register definitions for slave mode
+        /// Gets the holding register definitions for slave mode
         /// </summary>
         public ObservableCollection<RegisterDefinition> RegisterDefinitions { get; } = new ObservableCollection<RegisterDefinition>();
+
+        /// <summary>
+        /// Gets the input register definitions for slave mode
+        /// </summary>
+        public ObservableCollection<RegisterDefinition> InputRegisterDefinitions { get; } = new ObservableCollection<RegisterDefinition>();
 
         /// <summary>
         /// Constructor
@@ -324,13 +329,13 @@ namespace ModbusTerm.Services
         // Sample registers have been removed as per user request - users will now add their own registers
         
         /// <summary>
-        /// Initialize the Modbus data store with register values from RegisterDefinitions
+        /// Initialize the Modbus data store with register values from RegisterDefinitions and InputRegisterDefinitions
         /// </summary>
         private void InitializeRegisters()
         {
             if (_dataStore == null) return;
             
-            // Initialize all defined registers in the data store
+            // Initialize all defined holding registers in the data store
             foreach (var register in RegisterDefinitions)
             {
                 // Prepare values based on data type
@@ -354,11 +359,37 @@ namespace ModbusTerm.Services
                 // For data store registers, we need to use proper NModbus API methods
                 // In NModbus 3.0.81, use WritePoints method on DefaultPointSource<ushort>
                 _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
-            }            
+            }
+            
+            // Initialize all defined input registers in the data store
+            foreach (var register in InputRegisterDefinitions)
+            {
+                // Prepare values based on data type
+                var values = new List<ushort>();
+                
+                // Primary value is always included
+                values.Add(register.Value);
+                
+                // Add additional values for multi-register types
+                int registerCount = register.RegisterCount;
+                if (registerCount > 1 && register.AdditionalValues.Count > 0)
+                {
+                    // Only add as many values as we need for this data type
+                    int additionalCount = Math.Min(register.AdditionalValues.Count, registerCount - 1);
+                    for (int i = 0; i < additionalCount; i++)
+                    {
+                        values.Add(register.AdditionalValues[i]);
+                    }
+                }
+                
+                // For data store registers, we need to use proper NModbus API methods
+                // In NModbus 3.0.81, use WritePoints method on DefaultPointSource<ushort>
+                _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
+            }
         }
 
         /// <summary>
-        /// Update a register's value
+        /// Update a holding register's value
         /// </summary>
         /// <param name="register">The register to update</param>
         public void UpdateRegisterValue(RegisterDefinition register)
@@ -392,11 +423,54 @@ namespace ModbusTerm.Services
                 // Update the register in the data store using WritePoints method
                 _dataStore.HoldingRegisters.WritePoints(register.Address, values.ToArray());
                 
-                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated register {register.Address} to {register.FormattedValue}"));
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated holding register {register.Address} to {register.FormattedValue}"));
             }
             catch (Exception ex)
             {
-                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Failed to update register {register.Address}: {ex.Message}"));
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Failed to update holding register {register.Address}: {ex.Message}"));
+            }
+        }
+
+        /// <summary>
+        /// Update an input register's value
+        /// </summary>
+        /// <param name="register">The register to update</param>
+        public void UpdateInputRegisterValue(RegisterDefinition register)
+        {
+            try
+            {
+                if (_dataStore == null)
+                {
+                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Cannot update input register {register.Address}: Data store not initialized"));
+                    return;
+                }
+                
+                // Prepare values based on data type
+                var values = new List<ushort>();
+                
+                // Primary value is always included
+                values.Add(register.Value);
+                
+                // Add additional values for multi-register types
+                int registerCount = register.RegisterCount;
+                if (registerCount > 1 && register.AdditionalValues.Count > 0)
+                {
+                    // Only add as many values as we need for this data type
+                    int additionalCount = Math.Min(register.AdditionalValues.Count, registerCount - 1);
+                    for (int i = 0; i < additionalCount; i++)
+                    {
+                        values.Add(register.AdditionalValues[i]);
+                    }
+                }
+                
+                // Update the register in the data store using WritePoints method
+                _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
+                
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated input register {register.Address} to {register.FormattedValue}"));
+            }
+            catch (Exception ex)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Failed to update input register {register.Address}: {ex.Message}"));
             }
         }
 

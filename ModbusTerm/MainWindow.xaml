@@ -495,58 +495,114 @@
             <!-- Slave Mode Tab (visible when in slave mode) -->
             <TabItem Header="Slave Mode" IsSelected="{Binding IsSlaveMode, Mode=OneWay}" Visibility="{Binding IsSlaveMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
                 <Grid>
-                    <!-- Register Table -->
-                    <GroupBox Header="Holding Registers" Margin="5" Padding="5" Style="{StaticResource GroupBoxHeaderStyle}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            
-                            <!-- Register Data Grid -->
-                            <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
-                                       Name="RegistersGrid"
-                                       ItemsSource="{Binding RegisterDefinitions}"
-                                       SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
-                                       CanUserAddRows="False"
-                                       Style="{StaticResource ModernDataGridStyle}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
-                                    <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
-                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
-                                    <DataGridComboBoxColumn Header="Data Type" 
-                                                          SelectedItemBinding="{Binding DataType}" 
-                                                          Width="100">
-                                        <DataGridComboBoxColumn.ElementStyle>
-                                            <Style TargetType="ComboBox">
-                                                <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            </Style>
-                                        </DataGridComboBoxColumn.ElementStyle>
-                                        <DataGridComboBoxColumn.EditingElementStyle>
-                                            <Style TargetType="ComboBox">
-                                                <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            </Style>
-                                        </DataGridComboBoxColumn.EditingElementStyle>
-                                    </DataGridComboBoxColumn>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            
-                            <!-- Register Actions -->
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                <Button Content="Add Register" Width="100" Margin="0,0,8,0"
-                                        Command="{Binding AddRegisterCommand}" Style="{StaticResource StandardButtonStyle}" />
-                                <Button Content="Remove Register" Width="115" Margin="0,0,8,0"
-                                        Command="{Binding RemoveRegisterCommand}" 
-                                        IsEnabled="{Binding HasSelectedRegister}" Style="{StaticResource StandardButtonStyle}" />
-                                <Button Content="Import" Width="80" Margin="0,0,8,0"
-                                        Command="{Binding ImportRegistersCommand}" Style="{StaticResource StandardButtonStyle}" />
-                                <Button Content="Export" Width="80" 
-                                        Command="{Binding ExportRegistersCommand}" 
-                                        IsEnabled="{Binding HasRegisters}" Style="{StaticResource StandardButtonStyle}" />
-                            </StackPanel>
-                        </Grid>
-                    </GroupBox>
+                    <!-- Register Tables in Tabs -->
+                    <TabControl Margin="5" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                        <!-- Holding Registers Tab -->
+                        <TabItem Header="Holding Registers">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Register Data Grid -->
+                                <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
+                                           Name="RegistersGrid"
+                                           ItemsSource="{Binding RegisterDefinitions}"
+                                           SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
+                                           CanUserAddRows="False"
+                                           Style="{StaticResource ModernDataGridStyle}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
+                                        <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                                        <DataGridComboBoxColumn Header="Data Type" 
+                                                              SelectedItemBinding="{Binding DataType}" 
+                                                              Width="100">
+                                            <DataGridComboBoxColumn.ElementStyle>
+                                                <Style TargetType="ComboBox">
+                                                    <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </Style>
+                                            </DataGridComboBoxColumn.ElementStyle>
+                                            <DataGridComboBoxColumn.EditingElementStyle>
+                                                <Style TargetType="ComboBox">
+                                                    <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </Style>
+                                            </DataGridComboBoxColumn.EditingElementStyle>
+                                        </DataGridComboBoxColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                
+                                <!-- Register Actions -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="Add Register" Width="100" Margin="0,0,8,0"
+                                            Command="{Binding AddRegisterCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Remove Register" Width="115" Margin="0,0,8,0"
+                                            Command="{Binding RemoveRegisterCommand}" 
+                                            IsEnabled="{Binding HasSelectedRegister}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Import" Width="80" Margin="0,0,8,0"
+                                            Command="{Binding ImportRegistersCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Export" Width="80" 
+                                            Command="{Binding ExportRegistersCommand}" 
+                                            IsEnabled="{Binding HasRegisters}" Style="{StaticResource StandardButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <!-- Input Registers Tab -->
+                        <TabItem Header="Input Registers" IsSelected="{Binding ShowInputRegisters, Mode=TwoWay}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Input Register Data Grid -->
+                                <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
+                                           Name="InputRegistersGrid"
+                                           ItemsSource="{Binding InputRegisterDefinitions}"
+                                           SelectedItem="{Binding SelectedInputRegister, Mode=TwoWay}"
+                                           CanUserAddRows="False"
+                                           Style="{StaticResource ModernDataGridStyle}">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
+                                        <DataGridTextColumn Header="Value" Binding="{Binding EditableValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                                        <DataGridComboBoxColumn Header="Data Type" 
+                                                              SelectedItemBinding="{Binding DataType}" 
+                                                              Width="100">
+                                            <DataGridComboBoxColumn.ElementStyle>
+                                                <Style TargetType="ComboBox">
+                                                    <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </Style>
+                                            </DataGridComboBoxColumn.ElementStyle>
+                                            <DataGridComboBoxColumn.EditingElementStyle>
+                                                <Style TargetType="ComboBox">
+                                                    <Setter Property="ItemsSource" Value="{Binding DataContext.AvailableDataTypes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                </Style>
+                                            </DataGridComboBoxColumn.EditingElementStyle>
+                                        </DataGridComboBoxColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                
+                                <!-- Input Register Actions -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="Add Input Register" Width="120" Margin="0,0,8,0"
+                                            Command="{Binding AddInputRegisterCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Remove Input Register" Width="135" Margin="0,0,8,0"
+                                            Command="{Binding RemoveInputRegisterCommand}" 
+                                            IsEnabled="{Binding HasSelectedInputRegister}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Import" Width="80" Margin="0,0,8,0"
+                                            Command="{Binding ImportInputRegistersCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Export" Width="80" 
+                                            Command="{Binding ExportInputRegistersCommand}" 
+                                            IsEnabled="{Binding HasInputRegisters}" Style="{StaticResource StandardButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
                 </Grid>
             </TabItem>
         </TabControl>
