@@ -8,7 +8,7 @@
         xmlns:helpers="clr-namespace:ModbusTerm.Helpers"
         xmlns:viewmodels="clr-namespace:ModbusTerm.ViewModels"
         mc:Ignorable="d"
-        Title="ModbusTerm - Modbus Testing Tool" Background="#F0F0F0"
+        Title="ModbusTerm - Modbus Testing Tool" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
         Width="900" Height="950" MinWidth="800" MinHeight="800"
         WindowStartupLocation="CenterScreen">
     
@@ -25,9 +25,10 @@
         <!-- Common Button Style -->
         <Style x:Key="StandardButtonStyle" TargetType="Button">
             <Setter Property="Padding" Value="10,5" />
-            <Setter Property="Background" Value="#2196F3" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -39,13 +40,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#1976D2" />
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#0D47A1" />
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#BDBDBD" />
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" />
+                                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -55,13 +57,13 @@
         
         <!-- GroupBox Header Style -->
         <Style x:Key="GroupBoxHeaderStyle" TargetType="{x:Type GroupBox}">
-            <Setter Property="BorderBrush" Value="#BDBDBD" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="5" />
             <Setter Property="HeaderTemplate">
                 <Setter.Value>
                     <DataTemplate>
-                        <TextBlock Text="{Binding}" FontWeight="Bold" Foreground="#2196F3" />
+                        <TextBlock Text="{Binding}" FontWeight="Bold" Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}" />
                     </DataTemplate>
                 </Setter.Value>
             </Setter>
@@ -69,13 +71,13 @@
         
         <!-- DataGrid Style -->
         <Style x:Key="ModernDataGridStyle" TargetType="{x:Type DataGrid}">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="BorderBrush" Value="#BDBDBD" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="RowBackground" Value="White" />
-            <Setter Property="AlternatingRowBackground" Value="#F5F5F5" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#EEEEEE" />
-            <Setter Property="VerticalGridLinesBrush" Value="#EEEEEE" />
+            <Setter Property="RowBackground" Value="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
+            <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
         </Style>
     </Window.Resources>
     
@@ -228,7 +230,7 @@
         </GroupBox>
         
         <!-- Main Content Area -->
-        <TabControl Grid.Row="1" Margin="5" Background="White" BorderBrush="#BDBDBD">
+        <TabControl Grid.Row="1" Margin="5" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
             <!-- Master Mode Tab (visible when in master mode) -->
             <TabItem Header="Master Mode" IsSelected="{Binding IsMasterMode, Mode=OneWay}" Visibility="{Binding IsMasterMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
                 <Grid>
@@ -299,7 +301,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Margin="0,0,8,5" Padding="4" BorderThickness="1" BorderBrush="#CCCCCC" CornerRadius="3" Background="#FAFAFA">
+                                            <Border Margin="0,0,8,5" Padding="4" BorderThickness="1" BorderBrush="#CCCCCC" CornerRadius="3" Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
                                                 <Grid>
                                                     <!-- Coil Write (Boolean) Template -->
                                                     <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}">
