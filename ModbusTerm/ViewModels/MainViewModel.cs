@@ -62,6 +62,22 @@ namespace ModbusTerm.ViewModels
         private ICommand _importInputRegistersCommand;
         private ICommand _exportInputRegistersCommand;
         private bool _showInputRegisters = false;
+        
+        // Coils management
+        private BooleanRegisterDefinition? _selectedCoil;
+        private ICommand _addCoilCommand;
+        private ICommand _removeCoilCommand;
+        private ICommand _importCoilsCommand;
+        private ICommand _exportCoilsCommand;
+        private bool _showCoils = true;
+        
+        // Discrete Inputs management
+        private BooleanRegisterDefinition? _selectedDiscreteInput;
+        private ICommand _addDiscreteInputCommand;
+        private ICommand _removeDiscreteInputCommand;
+        private ICommand _importDiscreteInputsCommand;
+        private ICommand _exportDiscreteInputsCommand;
+        private bool _showDiscreteInputs = true;
 
         /// <summary>
         /// Command to connect to a Modbus device
@@ -207,6 +223,24 @@ namespace ModbusTerm.ViewModels
             get => _showInputRegisters;
             set => SetProperty(ref _showInputRegisters, value);
         }
+        
+        /// <summary>
+        /// Gets or sets whether to show coils tab
+        /// </summary>
+        public bool ShowCoils
+        {
+            get => _showCoils;
+            set => SetProperty(ref _showCoils, value);
+        }
+        
+        /// <summary>
+        /// Gets or sets whether to show discrete inputs tab
+        /// </summary>
+        public bool ShowDiscreteInputs
+        {
+            get => _showDiscreteInputs;
+            set => SetProperty(ref _showDiscreteInputs, value);
+        }
 
         /// <summary>
         /// Gets the command to add a new input register in slave mode
@@ -237,6 +271,106 @@ namespace ModbusTerm.ViewModels
         /// Gets the command to export input registers to a file
         /// </summary>
         public ICommand ExportInputRegistersCommand => _exportInputRegistersCommand;
+        
+        /// <summary>
+        /// Gets or sets the selected coil in slave mode
+        /// </summary>
+        public BooleanRegisterDefinition? SelectedCoil
+        {
+            get => _selectedCoil;
+            set
+            {
+                if (SetProperty(ref _selectedCoil, value))
+                {
+                    OnPropertyChanged(nameof(HasSelectedCoil));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets whether there is a selected coil
+        /// </summary>
+        public bool HasSelectedCoil => SelectedCoil != null;
+        
+        /// <summary>
+        /// Gets whether there are coils defined
+        /// </summary>
+        public bool HasCoils => _slaveService.CoilDefinitions.Count > 0;
+        
+        /// <summary>
+        /// Gets the collection of coil definitions from the slave service
+        /// </summary>
+        public ObservableCollection<BooleanRegisterDefinition> CoilDefinitions => _slaveService.CoilDefinitions;
+        
+        /// <summary>
+        /// Gets the command to add a new coil in slave mode
+        /// </summary>
+        public ICommand AddCoilCommand => _addCoilCommand;
+        
+        /// <summary>
+        /// Gets the command to remove a coil in slave mode
+        /// </summary>
+        public ICommand RemoveCoilCommand => _removeCoilCommand;
+        
+        /// <summary>
+        /// Gets the command to import coils from a file
+        /// </summary>
+        public ICommand ImportCoilsCommand => _importCoilsCommand;
+        
+        /// <summary>
+        /// Gets the command to export coils to a file
+        /// </summary>
+        public ICommand ExportCoilsCommand => _exportCoilsCommand;
+        
+        /// <summary>
+        /// Gets or sets the selected discrete input in slave mode
+        /// </summary>
+        public BooleanRegisterDefinition? SelectedDiscreteInput
+        {
+            get => _selectedDiscreteInput;
+            set
+            {
+                if (SetProperty(ref _selectedDiscreteInput, value))
+                {
+                    OnPropertyChanged(nameof(HasSelectedDiscreteInput));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets whether there is a selected discrete input
+        /// </summary>
+        public bool HasSelectedDiscreteInput => SelectedDiscreteInput != null;
+        
+        /// <summary>
+        /// Gets whether there are discrete inputs defined
+        /// </summary>
+        public bool HasDiscreteInputs => _slaveService.DiscreteInputDefinitions.Count > 0;
+        
+        /// <summary>
+        /// Gets the collection of discrete input definitions from the slave service
+        /// </summary>
+        public ObservableCollection<BooleanRegisterDefinition> DiscreteInputDefinitions => _slaveService.DiscreteInputDefinitions;
+        
+        /// <summary>
+        /// Gets the command to add a new discrete input in slave mode
+        /// </summary>
+        public ICommand AddDiscreteInputCommand => _addDiscreteInputCommand;
+        
+        /// <summary>
+        /// Gets the command to remove a discrete input in slave mode
+        /// </summary>
+        public ICommand RemoveDiscreteInputCommand => _removeDiscreteInputCommand;
+        
+        /// <summary>
+        /// Gets the command to import discrete inputs from a file
+        /// </summary>
+        public ICommand ImportDiscreteInputsCommand => _importDiscreteInputsCommand;
+        
+        /// <summary>
+        /// Gets the command to export discrete inputs to a file
+        /// </summary>
+        public ICommand ExportDiscreteInputsCommand => _exportDiscreteInputsCommand;
 
         /// <summary>
         /// Gets or sets whether the connection is established
@@ -536,8 +670,22 @@ namespace ModbusTerm.ViewModels
             _importInputRegistersCommand = new RelayCommand(_ => ImportInputRegisters(), _ => IsSlaveMode);
             _exportInputRegistersCommand = new RelayCommand(_ => ExportInputRegisters(), _ => IsSlaveMode && HasInputRegisters);
             
-            // Default showing input registers to true
+            // Initialize coil management commands
+            _addCoilCommand = new RelayCommand(_ => AddCoil(), _ => IsSlaveMode);
+            _removeCoilCommand = new RelayCommand(_ => RemoveCoil(), _ => IsSlaveMode && HasSelectedCoil);
+            _importCoilsCommand = new RelayCommand(_ => ImportCoils(), _ => IsSlaveMode);
+            _exportCoilsCommand = new RelayCommand(_ => ExportCoils(), _ => IsSlaveMode && HasCoils);
+            
+            // Initialize discrete input management commands
+            _addDiscreteInputCommand = new RelayCommand(_ => AddDiscreteInput(), _ => IsSlaveMode);
+            _removeDiscreteInputCommand = new RelayCommand(_ => RemoveDiscreteInput(), _ => IsSlaveMode && HasSelectedDiscreteInput);
+            _importDiscreteInputsCommand = new RelayCommand(_ => ImportDiscreteInputs(), _ => IsSlaveMode);
+            _exportDiscreteInputsCommand = new RelayCommand(_ => ExportDiscreteInputs(), _ => IsSlaveMode && HasDiscreteInputs);
+            
+            // Default showing tabs to true
             _showInputRegisters = true;
+            _showCoils = true;
+            _showDiscreteInputs = true;
             
             // Initialize data types for slave mode registers
             InitializeDataTypes();
@@ -545,6 +693,8 @@ namespace ModbusTerm.ViewModels
             // Set up event handler for register value changes
             _slaveService.RegisterDefinitions.CollectionChanged += RegisterDefinitions_CollectionChanged;
             _slaveService.InputRegisterDefinitions.CollectionChanged += InputRegisterDefinitions_CollectionChanged;
+            _slaveService.CoilDefinitions.CollectionChanged += CoilDefinitions_CollectionChanged;
+            _slaveService.DiscreteInputDefinitions.CollectionChanged += DiscreteInputDefinitions_CollectionChanged;
             
             // Hook up property changed events to existing registers
             foreach (var register in _slaveService.RegisterDefinitions)
@@ -564,13 +714,37 @@ namespace ModbusTerm.ViewModels
                 }
             }
             
+            // Hook up property changed events to existing coils
+            foreach (var coil in _slaveService.CoilDefinitions)
+            {
+                if (coil is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += Coil_PropertyChanged;
+                }
+            }
+            
+            // Hook up property changed events to existing discrete inputs
+            foreach (var discreteInput in _slaveService.DiscreteInputDefinitions)
+            {
+                if (discreteInput is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged += DiscreteInput_PropertyChanged;
+                }
+            }
+            
             // Subscribe to external register changes from Modbus master devices
             _slaveService.RegisterChanged += SlaveService_RegisterChanged;
+            _slaveService.CoilChanged += SlaveService_CoilChanged;
+            
+            // Subscribe to the highlight timer tick event
+            _highlightTimer.Tick += HighlightTimer_Tick;
         }
 
         // For tracking timer to clear register highlights
-        private System.Windows.Threading.DispatcherTimer? _highlightTimer;
-        private List<RegisterDefinition> _highlightedRegisters = new List<RegisterDefinition>();
+        private readonly DispatcherTimer _highlightTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(HIGHLIGHT_DURATION_MS) };
+        private HashSet<RegisterDefinition> _highlightedRegisters = new HashSet<RegisterDefinition>();
+        private HashSet<BooleanRegisterDefinition> _highlightedCoils = new HashSet<BooleanRegisterDefinition>();
+        private HashSet<BooleanRegisterDefinition> _highlightedDiscreteInputs = new HashSet<BooleanRegisterDefinition>();
         private const int HIGHLIGHT_DURATION_MS = 5000; // 5 seconds highlight duration
         
         /// <summary>
@@ -578,132 +752,411 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void SlaveService_RegisterChanged(object? sender, RegisterChangedEventArgs e)
         {
-            try
+            // Ensure we update the UI on the UI thread
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                // Process on the UI thread since this comes from a background task
-                App.Current.Dispatcher.Invoke(() =>
+                // Update all registers that were changed
+                for (int i = 0; i < e.Values.Length; i++)
                 {
-                    // First store previous highlighted registers to prevent race conditions
-                    var previouslyHighlightedRegisters = new List<RegisterDefinition>(_highlightedRegisters);
-                    _highlightedRegisters.Clear();
+                    // Calculate the actual address for this index
+                    ushort address = (ushort)(e.StartAddress + i);
                     
-                    // Store currently selected register to avoid highlight issue
-                    var currentlySelectedRegister = SelectedRegister;
-                    
-                    // Find the affected registers in our collection and update them
-                    var modifiedRegisters = new List<RegisterDefinition>();
-                    
-                    for (int i = 0; i < e.Values.Length; i++)
+                    // Find the register in our collection
+                    var register = _slaveService.RegisterDefinitions.FirstOrDefault(r => r.Address == address);
+                    if (register != null)
                     {
-                        ushort address = (ushort)(e.StartAddress + i);
-                        var register = _slaveService.RegisterDefinitions.FirstOrDefault(r => r.Address == address);
+                        // Update UI with the changed value, but don't trigger another write back
+                        register.SuppressNotifications = true;
+                        register.Value = e.Values[i];
+                        register.SuppressNotifications = false;
+
+                        // Force a UI refresh by notifying change of a UI-bound property
+                        register.IsRecentlyModified = true;
+                        _highlightedRegisters.Add(register);
+                    }
+                }
+                
+                // Log the change
+                if (e.Values.Length > 0)
+                {
+                    var addressRange = e.Values.Length > 1 ? 
+                        $"{e.StartAddress}-{e.StartAddress + e.Values.Length - 1}" : 
+                        $"{e.StartAddress}";
                         
-                        if (register != null)
-                        {
-                            // Directly update values with property notifications temporarily disabled
-                            register.SuppressNotifications = true;
-                            
-                            // Set the value without triggering immediate UI updates
-                            register.Value = e.Values[i];
-                            
-                            // Force EditableValue to show the updated value
-                            string newFormattedValue = register.FormattedValue;
-                            register.EditableValue = newFormattedValue;
-                            
-                            // Mark the register as modified for highlighting
-                            // Set this first before enabling notifications
-                            register.IsRecentlyModified = true;
-                            
-                            // Now restore notifications
-                            register.SuppressNotifications = false;
-                            
-                            // Force UI update through direct property notification - including IsRecentlyModified
-                            register.ForcePropertyChanged("Value");
-                            register.ForcePropertyChanged("EditableValue");
-                            register.ForcePropertyChanged("FormattedValue");
-                            register.ForcePropertyChanged("IsRecentlyModified");
-                            
-                            // Track highlighted registers
-                            _highlightedRegisters.Add(register);
-                            modifiedRegisters.Add(register);
-                            
-                            // Log the change
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"External master updated holding register {address} to {register.FormattedValue}"));
-                        }
-                        else
-                        {
-                            // This could happen if the master is writing to registers we don't have in our UI
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"External master updated unknown holding register at address {address} to {e.Values[i]}"));
-                        }
-                    }
-                    
-                    // Clear previous highlights that aren't in the new set
-                    foreach (var register in previouslyHighlightedRegisters)
+                    OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                        $"Holding register(s) at addresses {addressRange} modified by external master"));
+
+                    // Start the timer to clear the highlight if it's not running
+                    if (!_highlightTimer.IsEnabled)
                     {
-                        if (!_highlightedRegisters.Contains(register))
-                        {
-                            register.IsRecentlyModified = false;
-                            register.ForcePropertyChanged("IsRecentlyModified"); // Ensure this change is noticed
-                        }
+                        _highlightTimer.Start();
                     }
-                    
-                    // Check if any register should be selected
-                    if (modifiedRegisters.Count > 0)
-                    {
-                        // Temporarily set selection to null to force update of selected item
-                        var registerToSelect = modifiedRegisters[0];
-                        SelectedRegister = null;
-                        
-                        // Delay selection to allow IsRecentlyModified to take effect
-                        App.Current.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
-                        {
-                            SelectedRegister = registerToSelect;
-                            
-                            // Force properties to update again after selection
-                            registerToSelect.ForcePropertyChanged("IsRecentlyModified");
-                        });
-                    }
-                    
-                    // Set up timer to clear highlights after delay
-                    if (_highlightTimer == null)
-                    {
-                        _highlightTimer = new System.Windows.Threading.DispatcherTimer
-                        {
-                            Interval = TimeSpan.FromMilliseconds(HIGHLIGHT_DURATION_MS)
-                        };
-                        _highlightTimer.Tick += HighlightTimer_Tick;
-                    }
-                    
-                    // Restart the timer
-                    _highlightTimer.Stop();
-                    _highlightTimer.Start();
-                });
-            }
-            catch (Exception ex)
+                }
+            });
+        }
+        
+        /// <summary>
+        /// Handle external changes to coils from a Modbus master
+        /// </summary>
+        private void SlaveService_CoilChanged(object? sender, CoilChangedEventArgs e)
+        {
+            // Ensure we update the UI on the UI thread
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent(
-                    $"Error handling external register change: {ex.Message}"));
-            }
+                // Update all coils that were changed
+                for (int i = 0; i < e.Values.Length; i++)
+                {
+                    // Calculate the actual address for this index
+                    ushort address = (ushort)(e.StartAddress + i);
+                    
+                    // Find the coil in our collection
+                    var coil = _slaveService.CoilDefinitions.FirstOrDefault(c => c.Address == address);
+                    if (coil != null)
+                    {
+                        // Update UI with the changed value, but don't trigger another write back
+                        coil.SuppressNotifications = true;
+                        coil.Value = e.Values[i];
+                        coil.SuppressNotifications = false;
+
+                        // Force UI refresh by explicitly notifying of property change
+                        coil.ForcePropertyChanged(nameof(BooleanRegisterDefinition.Value));
+                        coil.IsRecentlyModified = true;
+                        _highlightedCoils.Add(coil);
+                    }
+                }
+                
+                // Log the change
+                if (e.Values.Length > 0)
+                {
+                    var addressRange = e.Values.Length > 1 ? 
+                        $"{e.StartAddress}-{e.StartAddress + e.Values.Length - 1}" : 
+                        $"{e.StartAddress}";
+                        
+                    OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                        $"Coil(s) at addresses {addressRange} modified by external master"));
+
+                    // Start the timer to clear the highlight if it's not running
+                    if (!_highlightTimer.IsEnabled)
+                    {
+                        _highlightTimer.Start();
+                    }
+                }
+            });
         }
         
         /// <summary>
         /// Timer tick handler to clear highlights after delay
         /// </summary>
+        /// <summary>
+        /// Add a new coil to the slave coil collection
+        /// </summary>
+        private void AddCoil()
+        {
+            try
+            {
+                // Find the next available address
+                ushort nextAddress = 0;
+                if (_slaveService.CoilDefinitions.Count > 0)
+                {
+                    var last = _slaveService.CoilDefinitions.OrderBy(c => c.Address).Last();
+                    nextAddress = (ushort)(last.Address + 1);
+                }
+                
+                // Create a new coil with default values
+                var newCoil = new BooleanRegisterDefinition
+                {
+                    Address = nextAddress,
+                    Value = false,
+                    Name = $"Coil {nextAddress}",
+                    Description = "New coil",
+                    IsRecentlyModified = false
+                };
+                
+                // Temporarily disable coil changed notifications
+                bool oldSuppressNotifications = newCoil.SuppressNotifications;
+                newCoil.SuppressNotifications = true;
+                
+                try
+                {
+                    // Add to the service's collection
+                    _slaveService.CoilDefinitions.Add(newCoil);
+                    
+                    // Hook up property change notification
+                    if (newCoil is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += Coil_PropertyChanged;
+                    }
+                    
+                    // Update the service's data store
+                    _slaveService.UpdateCoilValue(newCoil);
+                    
+                    // Select the new coil
+                    SelectedCoil = newCoil;
+                    
+                    // Notify UI that coils collection has changed
+                    OnPropertyChanged(nameof(HasCoils));
+                }
+                finally
+                {
+                    // Restore the original notification state
+                    newCoil.SuppressNotifications = oldSuppressNotifications;
+                }
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added coil at address {nextAddress}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add coil: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Remove the currently selected coil from the slave coil collection
+        /// </summary>
+        private void RemoveCoil()
+        {
+            if (SelectedCoil == null)
+            {
+                return;
+            }
+            
+            try
+            {
+                var coilToRemove = SelectedCoil;
+                SelectedCoil = null; // Clear selection before removing to avoid UI issues
+                
+                // Remove from the service's collection
+                _slaveService.CoilDefinitions.Remove(coilToRemove);
+                
+                // Unsubscribe from property changed events
+                if (coilToRemove is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged -= Coil_PropertyChanged;
+                }
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Removed coil at address {coilToRemove.Address}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to remove coil: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Add a new discrete input to the slave discrete input collection
+        /// </summary>
+        private void AddDiscreteInput()
+        {
+            try
+            {
+                // Find the next available address
+                ushort nextAddress = 0;
+                if (_slaveService.DiscreteInputDefinitions.Count > 0)
+                {
+                    var last = _slaveService.DiscreteInputDefinitions.OrderBy(d => d.Address).Last();
+                    nextAddress = (ushort)(last.Address + 1);
+                }
+                
+                // Create a new discrete input with default values
+                var newDiscreteInput = new BooleanRegisterDefinition
+                {
+                    Address = nextAddress,
+                    Value = false,
+                    Name = $"Discrete Input {nextAddress}",
+                    Description = "New discrete input",
+                    IsRecentlyModified = false
+                };
+                
+                // Temporarily disable discrete input changed notifications
+                bool oldSuppressNotifications = newDiscreteInput.SuppressNotifications;
+                newDiscreteInput.SuppressNotifications = true;
+                
+                try
+                {
+                    // Add to the service's collection
+                    _slaveService.DiscreteInputDefinitions.Add(newDiscreteInput);
+                    
+                    // Hook up property change notification
+                    if (newDiscreteInput is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += DiscreteInput_PropertyChanged;
+                    }
+                    
+                    // Update the service's data store
+                    _slaveService.UpdateDiscreteInputValue(newDiscreteInput);
+                    
+                    // Select the new discrete input
+                    SelectedDiscreteInput = newDiscreteInput;
+                    
+                    // Notify UI that discrete inputs collection has changed
+                    OnPropertyChanged(nameof(HasDiscreteInputs));
+                }
+                finally
+                {
+                    // Restore the original notification state
+                    newDiscreteInput.SuppressNotifications = oldSuppressNotifications;
+                }
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added discrete input at address {nextAddress}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to add discrete input: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Remove the currently selected discrete input from the slave discrete input collection
+        /// </summary>
+        private void RemoveDiscreteInput()
+        {
+            if (SelectedDiscreteInput == null)
+            {
+                return;
+            }
+            
+            try
+            {
+                var discreteInputToRemove = SelectedDiscreteInput;
+                SelectedDiscreteInput = null; // Clear selection before removing to avoid UI issues
+                
+                // Remove from the service's collection
+                _slaveService.DiscreteInputDefinitions.Remove(discreteInputToRemove);
+                
+                // Unsubscribe from property changed events
+                if (discreteInputToRemove is INotifyPropertyChanged notifyPropertyChanged)
+                {
+                    notifyPropertyChanged.PropertyChanged -= DiscreteInput_PropertyChanged;
+                }
+                
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Removed discrete input at address {discreteInputToRemove.Address}"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to remove discrete input: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Import coils from a file
+        /// </summary>
+        private void ImportCoils()
+        {
+            try
+            {
+                // For now, this is a placeholder implementation
+                // In a real implementation, this would open a file dialog and parse the file contents
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Import coils feature is not yet implemented"));
+                
+                // Note: When implementing, follow the same pattern as ImportRegisters()
+                // 1. Open file dialog
+                // 2. Parse file (CSV, JSON, etc.)
+                // 3. Create BooleanRegisterDefinition objects
+                // 4. Add to _slaveService.CoilDefinitions
+                // 5. Update UI
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import coils: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Export coils to a file
+        /// </summary>
+        private void ExportCoils()
+        {
+            try
+            {
+                // For now, this is a placeholder implementation
+                // In a real implementation, this would open a save dialog and write the coil data to a file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Export coils feature is not yet implemented"));
+                
+                // Note: When implementing, follow the same pattern as ExportRegisters()
+                // 1. Open save dialog
+                // 2. Format coil data (CSV, JSON, etc.)
+                // 3. Write to file
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export coils: {ex.Message}"));
+            }
+        }
+
+        /// <summary>
+        /// Import discrete inputs from a file
+        /// </summary>
+        private void ImportDiscreteInputs()
+        {
+            try
+            {
+                // For now, this is a placeholder implementation
+                // In a real implementation, this would open a file dialog and parse the file contents
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Import discrete inputs feature is not yet implemented"));
+                
+                // Note: When implementing, follow the same pattern as ImportRegisters()
+                // 1. Open file dialog
+                // 2. Parse file (CSV, JSON, etc.)
+                // 3. Create BooleanRegisterDefinition objects
+                // 4. Add to _slaveService.DiscreteInputDefinitions
+                // 5. Update UI
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import discrete inputs: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Export discrete inputs to a file
+        /// </summary>
+        private void ExportDiscreteInputs()
+        {
+            try
+            {
+                // For now, this is a placeholder implementation
+                // In a real implementation, this would open a save dialog and write the discrete input data to a file
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Export discrete inputs feature is not yet implemented"));
+                
+                // Note: When implementing, follow the same pattern as ExportRegisters()
+                // 1. Open save dialog
+                // 2. Format discrete input data (CSV, JSON, etc.)
+                // 3. Write to file
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export discrete inputs: {ex.Message}"));
+            }
+        }
+        
         private void HighlightTimer_Tick(object? sender, EventArgs e)
         {
-            if (_highlightTimer != null)
+            _highlightTimer.Stop();
+            
+            // Need to update UI on UI thread
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                _highlightTimer.Stop();
-                
+                // Clear highlights for registers
                 foreach (var register in _highlightedRegisters)
                 {
                     register.IsRecentlyModified = false;
                 }
-                
                 _highlightedRegisters.Clear();
-            }
+                
+                // Clear highlights for coils
+                foreach (var coil in _highlightedCoils)
+                {
+                    coil.IsRecentlyModified = false;
+                }
+                _highlightedCoils.Clear();
+                
+                // Clear highlights for discrete inputs
+                foreach (var discreteInput in _highlightedDiscreteInputs)
+                {
+                    discreteInput.IsRecentlyModified = false;
+                }
+                _highlightedDiscreteInputs.Clear();
+            });
         }
         
         /// <summary>
@@ -1480,6 +1933,72 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
+        /// Handle collection changes in the CoilDefinitions collection
+        /// </summary>
+        private void CoilDefinitions_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                // Handle added coils
+                foreach (BooleanRegisterDefinition newCoil in e.NewItems)
+                {
+                    if (newCoil is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += Coil_PropertyChanged;
+                    }
+                }
+            }
+            
+            if (e.OldItems != null)
+            {
+                // Handle removed coils
+                foreach (BooleanRegisterDefinition oldCoil in e.OldItems)
+                {
+                    if (oldCoil is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged -= Coil_PropertyChanged;
+                    }
+                }
+            }
+            
+            // Notify UI properties that depend on coil count
+            OnPropertyChanged(nameof(HasCoils));
+        }
+        
+        /// <summary>
+        /// Handle collection changes in the DiscreteInputDefinitions collection
+        /// </summary>
+        private void DiscreteInputDefinitions_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems != null)
+            {
+                // Handle added discrete inputs
+                foreach (BooleanRegisterDefinition newDiscreteInput in e.NewItems)
+                {
+                    if (newDiscreteInput is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged += DiscreteInput_PropertyChanged;
+                    }
+                }
+            }
+            
+            if (e.OldItems != null)
+            {
+                // Handle removed discrete inputs
+                foreach (BooleanRegisterDefinition oldDiscreteInput in e.OldItems)
+                {
+                    if (oldDiscreteInput is INotifyPropertyChanged notifyPropertyChanged)
+                    {
+                        notifyPropertyChanged.PropertyChanged -= DiscreteInput_PropertyChanged;
+                    }
+                }
+            }
+            
+            // Notify UI properties that depend on discrete input count
+            OnPropertyChanged(nameof(HasDiscreteInputs));
+        }
+        
+        /// <summary>
         /// Handle property changes in RegisterDefinition objects
         /// </summary>
         private void Register_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1515,6 +2034,48 @@ namespace ModbusTerm.ViewModels
                 {
                     // Log the error but don't crash
                     OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update input register {register.Address}: {ex.Message}"));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Handle property changes in Coil objects
+        /// </summary>
+        private void Coil_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // When a coil property changes, update the value in the Modbus data store
+            if (sender is BooleanRegisterDefinition coil && e.PropertyName == nameof(BooleanRegisterDefinition.Value))
+            {
+                try
+                {
+                    // Update the coil value in the slave service
+                    _slaveService.UpdateCoilValue(coil);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't crash
+                    OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update coil {coil.Address}: {ex.Message}"));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Handle property changes in DiscreteInput objects
+        /// </summary>
+        private void DiscreteInput_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // When a discrete input property changes, update the value in the Modbus data store
+            if (sender is BooleanRegisterDefinition discreteInput && e.PropertyName == nameof(BooleanRegisterDefinition.Value))
+            {
+                try
+                {
+                    // Update the discrete input value in the slave service
+                    _slaveService.UpdateDiscreteInputValue(discreteInput);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't crash
+                    OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update discrete input {discreteInput.Address}: {ex.Message}"));
                 }
             }
         }
@@ -2058,30 +2619,36 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Clear current profiles
+                // Load profiles from the service
+                var profiles = await _profileService.GetProfileNamesAsync();
+                
+                // Update the collection
                 _profiles.Clear();
-                
-                // Get profiles from service
-                var profileNames = await _profileService.GetProfileNamesAsync();
-                
-                // Add to collection
-                foreach (var name in profileNames)
+                foreach (var profile in profiles)
                 {
-                    _profiles.Add(name);
+                    _profiles.Add(profile);
                 }
                 
-                // Set selected profile
-                if (_profiles.Count > 0 && string.IsNullOrEmpty(_selectedProfileName))
+                // Always ensure Default Profile exists
+                if (!_profiles.Contains("Default Profile"))
                 {
-                    _selectedProfileName = "Default Profile";
-                    OnPropertyChanged(nameof(SelectedProfileName));
+                    _profiles.Add("Default Profile");
                 }
+                
+                // Notify UI
+                OnPropertyChanged(nameof(Profiles));
             }
             catch (Exception ex)
             {
                 CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to load profiles: {ex.Message}"));
             }
         }
+        
+        // Methods for coils are implemented earlier in this file.
+        
+        // Import and export methods for coils are implemented earlier in this file.
+        
+        // Methods for discrete inputs are implemented earlier in this file.
         
         /// <summary>
         /// Loads a profile by name

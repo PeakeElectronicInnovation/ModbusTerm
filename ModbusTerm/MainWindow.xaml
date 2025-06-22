@@ -678,6 +678,132 @@
                                 </StackPanel>
                             </Grid>
                         </TabItem>
+                        
+                        <!-- Coils Tab -->
+                        <TabItem Header="Coils">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Coils Data Grid -->
+                                <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
+                                           Name="CoilsGrid"
+                                           ItemsSource="{Binding CoilDefinitions}"
+                                           SelectedItem="{Binding SelectedCoil, Mode=TwoWay}"
+                                           CanUserAddRows="False"
+                                           Style="{StaticResource ModernDataGridStyle}"
+                                           RowStyle="{StaticResource CustomDataGridRowStyle}">
+                                    <DataGrid.Resources>
+                                        <!-- Style for highlighting recently modified coils -->
+                                        <Style TargetType="DataGridRow">
+                                            <!-- Default style setters -->
+                                            <Style.Triggers>
+                                                <!-- Handle non-selected, modified rows -->
+                                                <DataTrigger Binding="{Binding IsRecentlyModified}" Value="True">
+                                                    <Setter Property="Background" Value="#FFFFCC" /> <!-- Light yellow highlight -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                                
+                                                <!-- Handle selected, modified rows -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsRecentlyModified}" Value="True" />
+                                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#FFF6A0" /> <!-- Darker yellow for selected+highlighted -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.Resources>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
+                                        <DataGridCheckBoxColumn Header="Value" Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                
+                                <!-- Coil Actions -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="Add Coil" Width="100" Margin="0,0,8,0"
+                                            Command="{Binding AddCoilCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Remove Coil" Width="115" Margin="0,0,8,0"
+                                            Command="{Binding RemoveCoilCommand}" 
+                                            IsEnabled="{Binding HasSelectedCoil}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Import" Width="80" Margin="0,0,8,0"
+                                            Command="{Binding ImportCoilsCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Export" Width="80" 
+                                            Command="{Binding ExportCoilsCommand}" 
+                                            IsEnabled="{Binding HasCoils}" Style="{StaticResource StandardButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
+                        
+                        <!-- Discrete Inputs Tab -->
+                        <TabItem Header="Discrete Inputs">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Discrete Inputs Data Grid -->
+                                <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
+                                           Name="DiscreteInputsGrid"
+                                           ItemsSource="{Binding DiscreteInputDefinitions}"
+                                           SelectedItem="{Binding SelectedDiscreteInput, Mode=TwoWay}"
+                                           CanUserAddRows="False"
+                                           Style="{StaticResource ModernDataGridStyle}"
+                                           RowStyle="{StaticResource CustomDataGridRowStyle}">
+                                    <DataGrid.Resources>
+                                        <!-- Style for highlighting recently modified discrete inputs -->
+                                        <Style TargetType="DataGridRow">
+                                            <!-- Default style setters -->
+                                            <Style.Triggers>
+                                                <!-- Handle non-selected, modified rows -->
+                                                <DataTrigger Binding="{Binding IsRecentlyModified}" Value="True">
+                                                    <Setter Property="Background" Value="#FFFFCC" /> <!-- Light yellow highlight -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                                
+                                                <!-- Handle selected, modified rows -->
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsRecentlyModified}" Value="True" />
+                                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#FFF6A0" /> <!-- Darker yellow for selected+highlighted -->
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.Resources>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="80" />
+                                        <DataGridCheckBoxColumn Header="Value" Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150" />
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                
+                                <!-- Discrete Input Actions -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="Add Discrete Input" Width="120" Margin="0,0,8,0"
+                                            Command="{Binding AddDiscreteInputCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Remove Discrete Input" Width="140" Margin="0,0,8,0"
+                                            Command="{Binding RemoveDiscreteInputCommand}" 
+                                            IsEnabled="{Binding HasSelectedDiscreteInput}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Import" Width="80" Margin="0,0,8,0"
+                                            Command="{Binding ImportDiscreteInputsCommand}" Style="{StaticResource StandardButtonStyle}" />
+                                    <Button Content="Export" Width="80" 
+                                            Command="{Binding ExportDiscreteInputsCommand}" 
+                                            IsEnabled="{Binding HasDiscreteInputs}" Style="{StaticResource StandardButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
                     </TabControl>
                 </Grid>
             </TabItem>

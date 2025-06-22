@@ -19,13 +19,21 @@ namespace ModbusTerm.Services
         /// </summary>
         public event EventHandler<RegisterChangedEventArgs>? HoldingRegisterChanged;
         
+        /// <summary>
+        /// Event raised when a coil is changed by an external Modbus master
+        /// </summary>
+        public event EventHandler<CoilChangedEventArgs>? CoilChanged;
+        
         // Wrapping the holding registers with a notifying source
         private readonly NotifyingPointSource<ushort> _notifyingHoldingRegisters;
         
+        // Wrapping the coils with a notifying source
+        private readonly NotifyingPointSource<bool> _notifyingCoils;
+        
         /// <summary>
-        /// Gets the coils (read/write) data store
+        /// Gets the coils (read/write) data store with notification on changes
         /// </summary>
-        public IPointSource<bool> CoilDiscretes => _innerDataStore.CoilDiscretes;
+        public IPointSource<bool> CoilDiscretes => _notifyingCoils;
         
         /// <summary>
         /// Gets the coil inputs (read-only) data store
@@ -48,14 +56,29 @@ namespace ModbusTerm.Services
         public NotifyingSlaveDataStore()
         {
             _innerDataStore = new DefaultSlaveDataStore();
+            
+            // Set up notifying holding registers
             _notifyingHoldingRegisters = new NotifyingPointSource<ushort>(_innerDataStore.HoldingRegisters);
             _notifyingHoldingRegisters.PointsWritten += NotifyingHoldingRegisters_PointsWritten;
+            
+            // Set up notifying coils
+            _notifyingCoils = new NotifyingPointSource<bool>(_innerDataStore.CoilDiscretes);
+            _notifyingCoils.PointsWritten += NotifyingCoils_PointsWritten;
         }
         
         private void NotifyingHoldingRegisters_PointsWritten(object? sender, PointsWrittenEventArgs<ushort> e)
         {
             // Notify listeners that holding registers were changed externally
             HoldingRegisterChanged?.Invoke(this, new RegisterChangedEventArgs(
+                e.StartAddress,
+                e.Values
+            ));
+        }
+        
+        private void NotifyingCoils_PointsWritten(object? sender, PointsWrittenEventArgs<bool> e)
+        {
+            // Notify listeners that coils were changed externally
+            CoilChanged?.Invoke(this, new CoilChangedEventArgs(
                 e.StartAddress,
                 e.Values
             ));
@@ -162,6 +185,31 @@ namespace ModbusTerm.Services
         /// Creates a new event arguments instance
         /// </summary>
         public RegisterChangedEventArgs(ushort startAddress, ushort[] values)
+        {
+            StartAddress = startAddress;
+            Values = values;
+        }
+    }
+    
+    /// <summary>
+    /// Event arguments for when coils are changed
+    /// </summary>
+    public class CoilChangedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// The start address of the coils that changed
+        /// </summary>
+        public ushort StartAddress { get; }
+        
+        /// <summary>
+        /// The new values for the coils
+        /// </summary>
+        public bool[] Values { get; }
+        
+        /// <summary>
+        /// Creates a new event arguments instance
+        /// </summary>
+        public CoilChangedEventArgs(ushort startAddress, bool[] values)
         {
             StartAddress = startAddress;
             Values = values;

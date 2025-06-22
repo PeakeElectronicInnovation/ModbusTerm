@@ -40,6 +40,11 @@ namespace ModbusTerm.Services
         /// Event raised when a holding register is changed by an external Modbus master
         /// </summary>
         public event EventHandler<RegisterChangedEventArgs>? RegisterChanged;
+        
+        /// <summary>
+        /// Event raised when a coil is changed by an external Modbus master
+        /// </summary>
+        public event EventHandler<CoilChangedEventArgs>? CoilChanged;
 
         /// <summary>
         /// Gets whether the connection is currently open
@@ -68,6 +73,24 @@ namespace ModbusTerm.Services
             RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
                 $"Holding register(s) {addresses} modified by external Modbus master"));
         }
+        
+        /// <summary>
+        /// Handle coil changes from external Modbus masters
+        /// </summary>
+        /// <param name="sender">The object that raised the event</param>
+        /// <param name="e">Event arguments with coil addresses and values</param>
+        private void DataStore_CoilChanged(object? sender, CoilChangedEventArgs e)
+        {
+            // Forward the event to any subscribers
+            CoilChanged?.Invoke(this, e);
+            
+            // Log the change event
+            var addresses = string.Join(", ", Enumerable.Range(e.StartAddress, e.Values.Length)
+                .Select(a => a.ToString()));
+                
+            RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                $"Coil(s) {addresses} modified by external Modbus master"));
+        }
 
         /// <summary>
         /// Gets the holding register definitions for slave mode
@@ -78,6 +101,16 @@ namespace ModbusTerm.Services
         /// Gets the input register definitions for slave mode
         /// </summary>
         public ObservableCollection<RegisterDefinition> InputRegisterDefinitions { get; } = new ObservableCollection<RegisterDefinition>();
+        
+        /// <summary>
+        /// Gets the coil definitions for slave mode
+        /// </summary>
+        public ObservableCollection<BooleanRegisterDefinition> CoilDefinitions { get; } = new ObservableCollection<BooleanRegisterDefinition>();
+        
+        /// <summary>
+        /// Gets the discrete input definitions for slave mode
+        /// </summary>
+        public ObservableCollection<BooleanRegisterDefinition> DiscreteInputDefinitions { get; } = new ObservableCollection<BooleanRegisterDefinition>();
 
         /// <summary>
         /// Constructor
@@ -87,6 +120,7 @@ namespace ModbusTerm.Services
             // Initialize with empty register collection and data store
             _dataStore = new NotifyingSlaveDataStore();
             _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+            _dataStore.CoilChanged += DataStore_CoilChanged;
             InitializeRegisters();
         }
 
@@ -137,11 +171,12 @@ namespace ModbusTerm.Services
 
             try
             {
-                // Create Modbus data store with notification support
+                // Create data store with notification support
                 _dataStore = new NotifyingSlaveDataStore();
                 
-                // Subscribe to register change events
+                // Subscribe to register and coil change events
                 _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                _dataStore.CoilChanged += DataStore_CoilChanged;
                 
                 // Initialize registers with defined values
                 InitializeRegisters();
@@ -225,8 +260,9 @@ namespace ModbusTerm.Services
                 // Create Modbus data store with notification support
                 _dataStore = new NotifyingSlaveDataStore();
                 
-                // Subscribe to register change events
+                // Subscribe to register and coil change events
                 _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                _dataStore.CoilChanged += DataStore_CoilChanged;
                 
                 // Initialize registers with defined values
                 InitializeRegisters();
@@ -416,6 +452,20 @@ namespace ModbusTerm.Services
                 // In NModbus 3.0.81, use WritePoints method on DefaultPointSource<ushort>
                 _dataStore.InputRegisters.WritePoints(register.Address, values.ToArray());
             }
+            
+            // Initialize all defined coils in the data store
+            foreach (var coil in CoilDefinitions)
+            {
+                // Coils are just boolean values, so no need for additional processing
+                _dataStore.CoilDiscretes.WritePoints(coil.Address, new bool[] { coil.Value });
+            }
+            
+            // Initialize all defined discrete inputs in the data store
+            foreach (var input in DiscreteInputDefinitions)
+            {
+                // Discrete inputs are just boolean values, so no need for additional processing
+                _dataStore.CoilInputs.WritePoints(input.Address, new bool[] { input.Value });
+            }
         }
 
         /// <summary>
@@ -601,6 +651,122 @@ namespace ModbusTerm.Services
         {
             // Implementation would export the register definitions to a file
             throw new NotImplementedException();
+        }
+        
+        /// <summary>
+        /// Update a coil's value
+        /// </summary>
+        /// <param name="coil">The coil to update</param>
+        public void UpdateCoilValue(BooleanRegisterDefinition coil)
+        {
+            try
+            {
+                if (_dataStore == null)
+                {
+                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Cannot update coil {coil.Address}: Data store not initialized"));
+                    return;
+                }
+                
+                // Temporarily suppress notifications for internal updates
+                if (_dataStore.CoilDiscretes is NotifyingPointSource<bool> notifyingSource)
+                {
+                    notifyingSource.SuppressNotifications = true;
+                    try
+                    {
+                        // Update the coil in the data store
+                        _dataStore.CoilDiscretes.WritePoints(coil.Address, new bool[] { coil.Value });
+                    }
+                    finally
+                    {
+                        // Make sure we re-enable notifications
+                        notifyingSource.SuppressNotifications = false;
+                    }
+                }
+                else
+                {
+                    // If not a notifying source (shouldn't happen), just call directly
+                    _dataStore.CoilDiscretes.WritePoints(coil.Address, new bool[] { coil.Value });
+                }
+                
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated coil {coil.Address} to {coil.FormattedValue}"));
+            }
+            catch (Exception ex)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Failed to update coil {coil.Address}: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Update a discrete input's value
+        /// </summary>
+        /// <param name="input">The discrete input to update</param>
+        public void UpdateDiscreteInputValue(BooleanRegisterDefinition input)
+        {
+            try
+            {
+                if (_dataStore == null)
+                {
+                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Cannot update discrete input {input.Address}: Data store not initialized"));
+                    return;
+                }
+                
+                // Update the discrete input in the data store
+                _dataStore.CoilInputs.WritePoints(input.Address, new bool[] { input.Value });
+                
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Updated discrete input {input.Address} to {input.FormattedValue}"));
+            }
+            catch (Exception ex)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Failed to update discrete input {input.Address}: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Add a new coil definition
+        /// </summary>
+        public void AddCoil(BooleanRegisterDefinition coil)
+        {
+            // Check if coil address already exists
+            var existing = CoilDefinitions.FirstOrDefault(r => r.Address == coil.Address);
+            if (existing != null)
+            {
+                throw new InvalidOperationException($"Coil at address {coil.Address} already exists");
+            }
+
+            CoilDefinitions.Add(coil);
+            UpdateCoilValue(coil);
+        }
+        
+        /// <summary>
+        /// Add a new discrete input definition
+        /// </summary>
+        public void AddDiscreteInput(BooleanRegisterDefinition input)
+        {
+            // Check if discrete input address already exists
+            var existing = DiscreteInputDefinitions.FirstOrDefault(r => r.Address == input.Address);
+            if (existing != null)
+            {
+                throw new InvalidOperationException($"Discrete input at address {input.Address} already exists");
+            }
+
+            DiscreteInputDefinitions.Add(input);
+            UpdateDiscreteInputValue(input);
+        }
+        
+        /// <summary>
+        /// Remove a coil definition
+        /// </summary>
+        public void RemoveCoil(BooleanRegisterDefinition coil)
+        {
+            CoilDefinitions.Remove(coil);
+        }
+        
+        /// <summary>
+        /// Remove a discrete input definition
+        /// </summary>
+        public void RemoveDiscreteInput(BooleanRegisterDefinition input)
+        {
+            DiscreteInputDefinitions.Remove(input);
         }
 
         /// <summary>
