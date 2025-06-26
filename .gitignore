@@ -1,2 +1,4 @@
 ModbusTerm/bin/
 ModbusTerm/obj/
+WixPackage/
+.vs/

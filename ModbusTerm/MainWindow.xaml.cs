@@ -251,6 +251,19 @@ public partial class MainWindow : Window
     }
     
     /// <summary>
+    /// Event handler for the COM port refresh button click
+    /// </summary>
+    /// <param name="sender">The button that was clicked</param>
+    /// <param name="e">Event arguments</param>
+    private void RefreshComPorts_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel != null)
+        {
+            _viewModel.RefreshComPorts();
+        }
+    }
+    
+    /// <summary>
     /// Event handler for property changes in the view model
     /// </summary>
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)

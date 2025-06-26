@@ -30,6 +30,7 @@ namespace ModbusTerm.ViewModels
         private IModbusService? _currentService;
         private ConnectionParameters _connectionParameters;
         private bool _isConnected;
+        private ConnectionStatus _connectionStatus = ConnectionStatus.Disconnected;
         private ObservableCollection<string> _profiles = new ObservableCollection<string>();
         private string _selectedProfileName = "Default Profile";
         private bool _isMasterMode = true;
@@ -382,6 +383,15 @@ namespace ModbusTerm.ViewModels
         }
 
         /// <summary>
+        /// Gets or sets the connection status
+        /// </summary>
+        public ConnectionStatus ConnectionStatus
+        {
+            get => _connectionStatus;
+            set => SetProperty(ref _connectionStatus, value);
+        }
+
+        /// <summary>
         /// Gets or sets whether the application is in master mode
         /// </summary>
         public bool IsMasterMode
@@ -447,7 +457,7 @@ namespace ModbusTerm.ViewModels
         }
 
         /// <summary>
-        /// Gets or sets the current Modbus function parameters
+        /// Gets the current Modbus function parameters
         /// </summary>
         public ModbusFunctionParameters CurrentRequest
         {
@@ -478,7 +488,7 @@ namespace ModbusTerm.ViewModels
         }
 
         /// <summary>
-        /// Gets or sets the last Modbus response
+        /// Gets the last Modbus response
         /// </summary>
         public ModbusResponseInfo? LastResponse
         {
@@ -587,6 +597,38 @@ namespace ModbusTerm.ViewModels
         /// Gets the available COM ports
         /// </summary>
         public string[] ComPorts => _masterService.GetAvailableComPorts();
+
+        /// <summary>
+        /// Refreshes the list of available COM ports
+        /// </summary>
+        public void RefreshComPorts()
+        {
+            // Notify UI that the ComPorts property has changed
+            OnPropertyChanged(nameof(ComPorts));
+
+            // If there's a valid connection parameter of RTU type, check if the current port is still available
+            if (_connectionParameters is RtuConnectionParameters rtuParams)
+            {
+                string[] availablePorts = _masterService.GetAvailableComPorts();
+
+                // Check if the currently selected port is not available anymore
+                if (!string.IsNullOrEmpty(rtuParams.ComPort) && !availablePorts.Contains(rtuParams.ComPort))
+                {
+                    // Select first available port if any exist
+                    if (availablePorts.Length > 0)
+                    {
+                        rtuParams.ComPort = availablePorts[0];
+                    }
+                    else
+                    {
+                        rtuParams.ComPort = string.Empty;
+                    }
+
+                    // Notify UI that the connection parameters have changed
+                    OnPropertyChanged(nameof(ConnectionParameters));
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the standard baud rates
@@ -1178,12 +1220,18 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
+                // Set status to disconnected while attempting connection
+                ConnectionStatus = ConnectionStatus.Disconnected;
+                
                 // Select the appropriate service based on mode
                 _currentService = IsMasterMode ? _masterService : _slaveService;
-
+                
                 // Connect using the current parameters
-                IsConnected = await _currentService.ConnectAsync(ConnectionParameters);
-
+                IsConnected = await _currentService.ConnectAsync(_connectionParameters);
+                
+                // Update connection status based on result
+                ConnectionStatus = IsConnected ? ConnectionStatus.Connected : ConnectionStatus.Failed;
+                
                 // Update commands
                 ConnectCommand.RaiseCanExecuteChanged();
                 DisconnectCommand.RaiseCanExecuteChanged();
@@ -1193,6 +1241,7 @@ namespace ModbusTerm.ViewModels
             {
                 CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Connection error: {ex.Message}"));
                 IsConnected = false;
+                ConnectionStatus = ConnectionStatus.Failed;
             }
         }
 
@@ -1209,6 +1258,9 @@ namespace ModbusTerm.ViewModels
                 }
 
                 IsConnected = false;
+
+                // Update connection status
+                ConnectionStatus = ConnectionStatus.Disconnected;
 
                 // Update commands
                 ConnectCommand.RaiseCanExecuteChanged();

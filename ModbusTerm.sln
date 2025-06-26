@@ -5,30 +5,53 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModbusTerm", "ModbusTerm\ModbusTerm.csproj", "{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}"
 EndProject
+Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "WixPackage", "WixPackage\WixPackage.wixproj", "{53D487CB-C360-402F-BE39-05EC645ABC09}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|ARM64 = Debug|ARM64
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
+		Release|ARM64 = Release|ARM64
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x64.Build.0 = Debug|Any CPU
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x86.Build.0 = Debug|Any CPU
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|Any CPU.ActiveCfg = Release|x64
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x64.ActiveCfg = Release|x64
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x64.Build.0 = Release|x64
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x86.ActiveCfg = Release|x86
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Debug|x86.Build.0 = Release|x86
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|ARM64.Build.0 = Release|Any CPU
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|x64.ActiveCfg = Release|Any CPU
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|x64.Build.0 = Release|Any CPU
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|x86.ActiveCfg = Release|Any CPU
 		{5CDDD1B6-5AC2-428F-8D3B-B5CC55D08E75}.Release|x86.Build.0 = Release|Any CPU
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|x64.ActiveCfg = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|x64.Build.0 = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|x86.ActiveCfg = Release|x86
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Debug|x86.Build.0 = Release|x86
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|Any CPU.ActiveCfg = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|Any CPU.Build.0 = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|ARM64.ActiveCfg = Release|ARM64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|ARM64.Build.0 = Release|ARM64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|x64.ActiveCfg = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|x64.Build.0 = Release|x64
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|x86.ActiveCfg = Release|x86
+		{53D487CB-C360-402F-BE39-05EC645ABC09}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D059C743-FACD-436C-9F55-BD98704A1498}
 	EndGlobalSection
 EndGlobal

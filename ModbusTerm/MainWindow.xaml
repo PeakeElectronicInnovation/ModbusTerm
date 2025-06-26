@@ -20,6 +20,7 @@
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <converters:ParityConverter x:Key="ParityConverter" />
         <converters:StopBitsConverter x:Key="StopBitsConverter" />
+        <converters:ConnectionStatusToColorConverter x:Key="ConnectionStatusToColorConverter" />
         <helpers:ModbusDataTypeConverter x:Key="ModbusDataTypeConverter"/>
         
         <!-- Custom DataGridRow style with orange selection -->
@@ -185,9 +186,21 @@
                     
                     <!-- First row of RTU parameters -->
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="COM Port:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                    <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,10,0"
-                              ItemsSource="{Binding ComPorts}"
-                              SelectedItem="{Binding ConnectionParameters.ComPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0" Margin="0,0,5,0"
+                                  ItemsSource="{Binding ComPorts}"
+                                  SelectedItem="{Binding ConnectionParameters.ComPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1" Width="40" Height="24" 
+                                ToolTip="Refresh COM port list"
+                                Click="RefreshComPorts_Click"
+                                Style="{StaticResource StandardButtonStyle}">
+                            <TextBlock Text="⟳" FontSize="20" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="0,0,0,5"/>
+                        </Button>
+                    </Grid>
                     
                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Baud Rate:" VerticalAlignment="Center" Margin="0,0,5,0" />
                     <ComboBox Grid.Row="0" Grid.Column="3" Margin="0,0,0,0"
@@ -250,6 +263,85 @@
                     
                     <!-- Connect/Disconnect buttons -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- Connection status LED indicator -->
+                        <Grid Margin="0,0,10,0">
+                            <!-- LED housing (outer ring) -->
+                            <Ellipse Width="18" Height="18" Fill="#333333">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect BlurRadius="2" ShadowDepth="1" Opacity="0.7" Color="#222222" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            
+                            <!-- LED body with binding to connection status -->
+                            <Ellipse Width="16" Height="16">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill">
+                                            <Setter.Value>
+                                                <RadialGradientBrush>
+                                                    <GradientStop Offset="0" Color="#CCCCCC" /> <!-- Default center color -->
+                                                    <GradientStop Offset="1" Color="#666666" /> <!-- Default edge color -->
+                                                </RadialGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="Effect">
+                                            <Setter.Value>
+                                                <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.3" Color="#888888" />
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <!-- Connected: Green LED -->
+                                            <DataTrigger Binding="{Binding ConnectionStatus}" Value="Connected">
+                                                <Setter Property="Fill">
+                                                    <Setter.Value>
+                                                        <RadialGradientBrush>
+                                                            <GradientStop Offset="0" Color="#BBFFBB" /> <!-- Bright green center -->
+                                                            <GradientStop Offset="1" Color="#00BB00" /> <!-- Dark green edge -->
+                                                        </RadialGradientBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.7" Color="#33FF33" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                            
+                                            <!-- Failed: Red LED -->
+                                            <DataTrigger Binding="{Binding ConnectionStatus}" Value="Failed">
+                                                <Setter Property="Fill">
+                                                    <Setter.Value>
+                                                        <RadialGradientBrush>
+                                                            <GradientStop Offset="0" Color="#FFBBBB" /> <!-- Bright red center -->
+                                                            <GradientStop Offset="1" Color="#BB0000" /> <!-- Dark red edge -->
+                                                        </RadialGradientBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.7" Color="#FF3333" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            
+                            <!-- Light reflection highlight -->
+                            <Ellipse Width="7" Height="5" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="3,3,0,0">
+                                <Ellipse.Fill>
+                                    <RadialGradientBrush Center="0.3,0.3" RadiusX="0.6" RadiusY="0.6">
+                                        <GradientStop Color="#AAFFFFFF" Offset="0" />
+                                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                                    </RadialGradientBrush>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            
+                            <Grid.ToolTip>
+                                <ToolTip Content="{Binding ConnectionStatus}" />
+                            </Grid.ToolTip>
+                        </Grid>
                         <Button Content="Connect" Command="{Binding ConnectCommand}" Width="80" Margin="0,0,10,0" Style="{StaticResource StandardButtonStyle}" />
                         <Button Content="Disconnect" Command="{Binding DisconnectCommand}" Width="80" Style="{StaticResource StandardButtonStyle}" />
                     </StackPanel>
