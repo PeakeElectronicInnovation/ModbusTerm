@@ -16,6 +16,7 @@ namespace ModbusTerm.Services
         private SerialPort? _serialPort;
         private bool _isMaster = true;
         private ConnectionParameters? _currentParameters;
+        private bool _needsConnectionRecovery = false;
 
         /// <summary>
         /// Event raised when a communication event occurs
@@ -177,26 +178,48 @@ namespace ModbusTerm.Services
         }
 
         /// <summary>
-        /// Execute a Modbus request
+        /// Execute a Modbus request with timeout from connection parameters
         /// </summary>
         public async Task<object?> ExecuteRequestAsync(ModbusFunctionParameters parameters)
         {
             if (_master == null)
             {
                 RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent("Not connected"));
-                return new ModbusResponseInfo
-                {
-                    IsSuccess = false,
-                    ErrorMessage = "Not connected",
-                    ExecutionTimeMs = 0
-                };
+                return null;
             }
+            
+            // Check if the connection needs recovery from a previous timeout
+            if (_needsConnectionRecovery && _currentParameters != null)
+            {
+                // Log the recovery attempt
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent("Recovering connection after timeout"));
+                
+                // Reset the connection
+                await DisconnectAsync();
+                await ConnectAsync(_currentParameters);
+                
+                // Clear the recovery flag regardless of reconnection success
+                _needsConnectionRecovery = false;
+                
+                // If reconnection failed, return error
+                if (_master == null)
+                {
+                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent("Failed to recover connection after timeout"));
+                    return null;
+                }
+            }
+            
+            // Get the timeout value from the current connection parameters
+            int timeout = _currentParameters?.Timeout ?? 5000; // Default to 5 seconds if not set
 
             var responseInfo = new ModbusResponseInfo();
             var startTime = DateTime.Now;
             
             try
             {
+                // Create a cancellation token source for the timeout
+                using CancellationTokenSource cts = timeout > 0 ? new CancellationTokenSource(timeout) : new CancellationTokenSource();
+                
                 // Track the request bytes in a communication event
                 object? result = null;
 
@@ -214,8 +237,12 @@ namespace ModbusTerm.Services
                                 (byte)(readCoils.Quantity >> 8), (byte)(readCoils.Quantity & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            var coils = await _master.ReadCoilsAsync(parameters.SlaveId, parameters.StartAddress, readCoils.Quantity);
+                            // Execute the actual request with timeout token
+                            var coils = await Task.Run(() => _master.ReadCoilsAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                readCoils.Quantity)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response with raw data
                             // For boolean arrays, convert to byte array representation
@@ -239,8 +266,12 @@ namespace ModbusTerm.Services
                                 (byte)(readDiscrete.Quantity >> 8), (byte)(readDiscrete.Quantity & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            var inputs = await _master.ReadInputsAsync(parameters.SlaveId, parameters.StartAddress, readDiscrete.Quantity);
+                            // Execute the actual request with timeout token
+                            var inputs = await Task.Run(() => _master.ReadInputsAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                readDiscrete.Quantity)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response with raw data
                             // For boolean arrays, convert to byte array representation
@@ -264,8 +295,12 @@ namespace ModbusTerm.Services
                                 (byte)(readHolding.Quantity >> 8), (byte)(readHolding.Quantity & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            var registers = await _master.ReadHoldingRegistersAsync(parameters.SlaveId, parameters.StartAddress, readHolding.Quantity);
+                            // Execute the actual request with timeout token
+                            var registers = await Task.Run(() => _master.ReadHoldingRegistersAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                readHolding.Quantity)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response with raw data
                             byte[] responseBytes = GetByteArrayFromUshorts(registers);
@@ -288,8 +323,12 @@ namespace ModbusTerm.Services
                                 (byte)(readInput.Quantity >> 8), (byte)(readInput.Quantity & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            var registers = await _master.ReadInputRegistersAsync(parameters.SlaveId, parameters.StartAddress, readInput.Quantity);
+                            // Execute the actual request with timeout token
+                            var registers = await Task.Run(() => _master.ReadInputRegistersAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                readInput.Quantity)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response with raw data
                             byte[] responseBytes = GetByteArrayFromUshorts(registers);
@@ -313,8 +352,12 @@ namespace ModbusTerm.Services
                                 (byte)(value >> 8), (byte)(value & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            await _master.WriteSingleCoilAsync(parameters.SlaveId, parameters.StartAddress, writeCoil.Value);
+                            // Execute the actual request with timeout token
+                            await Task.Run(() => _master.WriteSingleCoilAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                writeCoil.Value)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response (echo response for write operations)
                             string receivedMessage = $"Write confirmed for coil at address {parameters.StartAddress}";
@@ -336,8 +379,12 @@ namespace ModbusTerm.Services
                                 (byte)(writeReg.Value >> 8), (byte)(writeReg.Value & 0xFF) };
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
                             
-                            // Execute the actual request
-                            await _master.WriteSingleRegisterAsync(parameters.SlaveId, parameters.StartAddress, writeReg.Value);
+                            // Execute the actual request with timeout token
+                            await Task.Run(() => _master.WriteSingleRegisterAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                writeReg.Value)
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response (echo response for write operations)
                             string receivedMessage = $"Write confirmed for register at address {parameters.StartAddress}";
@@ -374,8 +421,12 @@ namespace ModbusTerm.Services
                             // Create and log sent event
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(coilBytes.ToArray(), sentMessage));
                             
-                            // Execute the actual request
-                            await _master.WriteMultipleCoilsAsync(parameters.SlaveId, parameters.StartAddress, writeCoils.Values.ToArray());
+                            // Execute the actual request with timeout token
+                            await Task.Run(() => _master.WriteMultipleCoilsAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                writeCoils.Values.ToArray())
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response (echo response for write operations)
                             string receivedMessage = $"Write confirmed for coils at address {parameters.StartAddress}";
@@ -413,8 +464,12 @@ namespace ModbusTerm.Services
                             // Create and log sent event
                             RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(regBytes.ToArray(), sentMessage));
                             
-                            // Execute the actual request
-                            await _master.WriteMultipleRegistersAsync(parameters.SlaveId, parameters.StartAddress, writeRegs.Values.ToArray());
+                            // Execute the actual request with timeout token
+                            await Task.Run(() => _master.WriteMultipleRegistersAsync(
+                                parameters.SlaveId, 
+                                parameters.StartAddress, 
+                                writeRegs.Values.ToArray())
+                            ).WaitAsync(cts.Token);
                             
                             // Log the received response (echo response for write operations)
                             string receivedMessage = $"Write confirmed for registers at address {parameters.StartAddress}";
@@ -439,6 +494,23 @@ namespace ModbusTerm.Services
                 responseInfo.Data = result;
                 
                 return responseInfo;
+            }
+            catch (OperationCanceledException)
+            {
+                var executionTime = (DateTime.Now - startTime).TotalMilliseconds;
+                var timeoutMessage = $"Request timed out after {_currentParameters?.Timeout ?? 5000} ms";
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(timeoutMessage));
+                
+                // Mark connection as needing recovery after timeout
+                // This ensures subsequent requests don't also timeout
+                _needsConnectionRecovery = true;
+                
+                return new ModbusResponseInfo
+                {
+                    IsSuccess = false,
+                    ErrorMessage = timeoutMessage,
+                    ExecutionTimeMs = (int)executionTime
+                };
             }
             catch (Exception ex)
             {

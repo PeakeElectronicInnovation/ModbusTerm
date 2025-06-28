@@ -46,6 +46,9 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
     }
     
+    // Flag to prevent recursive event triggering
+    private bool _isUpdatingUI = false;
+    
     /// <summary>
     /// Event handler for the connection type radio buttons
     /// </summary>
@@ -53,32 +56,45 @@ public partial class MainWindow : Window
     /// <param name="e">Event arguments</param>
     private void RadioButton_Checked(object sender, RoutedEventArgs e)
     {
+        // Prevent recursive calls
+        if (_isUpdatingUI)
+            return;
+            
         if (TcpParametersPanel == null || RtuParametersPanel == null)
             return;
             
         if (sender is RadioButton radioButton)
         {
-            // Get the connection type from the radio button tag
-            var connectionType = radioButton.Tag?.ToString() ?? string.Empty;
-            
-            // Show the appropriate parameter panel
-            if (connectionType == "TCP")
+            try
             {
-                TcpParametersPanel.Visibility = Visibility.Visible;
-                RtuParametersPanel.Visibility = Visibility.Collapsed;
+                _isUpdatingUI = true;
                 
-                // Update the view model
-                if (_viewModel != null)
-                    _viewModel.ChangeConnectionType(ConnectionType.TCP);
+                // Get the connection type from the radio button tag
+                var connectionType = radioButton.Tag?.ToString() ?? string.Empty;
+                
+                // Show the appropriate parameter panel
+                if (connectionType == "TCP")
+                {
+                    TcpParametersPanel.Visibility = Visibility.Visible;
+                    RtuParametersPanel.Visibility = Visibility.Collapsed;
+                    
+                    // Update the view model
+                    if (_viewModel != null)
+                        _viewModel.ChangeConnectionType(ConnectionType.TCP);
+                }
+                else if (connectionType == "RTU")
+                {
+                    TcpParametersPanel.Visibility = Visibility.Collapsed;
+                    RtuParametersPanel.Visibility = Visibility.Visible;
+                    
+                    // Update the view model
+                    if (_viewModel != null)
+                        _viewModel.ChangeConnectionType(ConnectionType.RTU);
+                }
             }
-            else if (connectionType == "RTU")
+            finally
             {
-                TcpParametersPanel.Visibility = Visibility.Collapsed;
-                RtuParametersPanel.Visibility = Visibility.Visible;
-                
-                // Update the view model
-                if (_viewModel != null)
-                    _viewModel.ChangeConnectionType(ConnectionType.RTU);
+                _isUpdatingUI = false;
             }
         }
     }
@@ -268,34 +284,57 @@ public partial class MainWindow : Window
     /// </summary>
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // Prevent recursive calls
+        if (_isUpdatingUI)
+            return;
+            
         // Handle connection parameters change to update UI accordingly
         if (e.PropertyName == nameof(MainViewModel.ConnectionParameters))
         {
-            // Update connection type radio buttons based on loaded connection parameters
-            if (_viewModel.ConnectionParameters != null)
+            try 
             {
-                // Find the connection type radio buttons by iterating through the children
-                foreach (UIElement element in ConnectionTypePanel.Children)
+                _isUpdatingUI = true;
+                
+                // Update connection type radio buttons based on loaded connection parameters
+                if (_viewModel.ConnectionParameters != null && ConnectionTypePanel != null)
                 {
-                    if (element is RadioButton radioButton && radioButton.Tag != null)
+                    // Find the connection type radio buttons by iterating through the children
+                    foreach (UIElement element in ConnectionTypePanel.Children)
                     {
-                        string buttonType = radioButton.Tag?.ToString() ?? string.Empty;
-                        
-                        // Check if this radio button matches the connection parameters type
-                        if (_viewModel.ConnectionParameters is TcpConnectionParameters && buttonType == "TCP")
+                        if (element is RadioButton radioButton && radioButton.Tag != null)
                         {
-                            radioButton.IsChecked = true;
-                            // The RadioButton_Checked event will handle updating panels
-                            break;
-                        }
-                        else if (_viewModel.ConnectionParameters is RtuConnectionParameters && buttonType == "RTU")
-                        {
-                            radioButton.IsChecked = true;
-                            // The RadioButton_Checked event will handle updating panels
-                            break;
+                            string buttonType = radioButton.Tag?.ToString() ?? string.Empty;
+                            
+                            // Check if this radio button matches the connection parameters type
+                            if (_viewModel.ConnectionParameters is TcpConnectionParameters && buttonType == "TCP")
+                            {
+                                radioButton.IsChecked = true;
+                                // Show/hide panels directly to avoid circular references
+                                if (TcpParametersPanel != null && RtuParametersPanel != null)
+                                {
+                                    TcpParametersPanel.Visibility = Visibility.Visible;
+                                    RtuParametersPanel.Visibility = Visibility.Collapsed;
+                                }
+                                break;
+                            }
+                            else if (_viewModel.ConnectionParameters is RtuConnectionParameters && buttonType == "RTU")
+                            {
+                                radioButton.IsChecked = true;
+                                // Show/hide panels directly to avoid circular references
+                                if (TcpParametersPanel != null && RtuParametersPanel != null)
+                                {
+                                    TcpParametersPanel.Visibility = Visibility.Collapsed;
+                                    RtuParametersPanel.Visibility = Visibility.Visible;
+                                }
+                                break;
+                            }
                         }
                     }
                 }
+            }
+            finally
+            {
+                _isUpdatingUI = false;
             }
         }
     }

@@ -19,6 +19,11 @@ namespace ModbusTerm.Models
         /// Gets or sets the connection name/profile name
         /// </summary>
         public string ProfileName { get; set; } = "Default Profile";
+        
+        /// <summary>
+        /// Gets or sets the request timeout in milliseconds. A value of 0 means no timeout.
+        /// </summary>
+        public int Timeout { get; set; } = 5000; // Default 5 seconds
     }
 
     /// <summary>

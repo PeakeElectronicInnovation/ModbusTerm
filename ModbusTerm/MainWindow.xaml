@@ -22,6 +22,7 @@
         <converters:StopBitsConverter x:Key="StopBitsConverter" />
         <converters:ConnectionStatusToColorConverter x:Key="ConnectionStatusToColorConverter" />
         <helpers:ModbusDataTypeConverter x:Key="ModbusDataTypeConverter"/>
+        <converters:ConnectionTypeConverter x:Key="ConnectionTypeConverter" />
         
         <!-- Custom DataGridRow style with orange selection -->
         <Style x:Key="CustomDataGridRowStyle" TargetType="DataGridRow">
@@ -134,26 +135,42 @@
                 </Grid.ColumnDefinitions>
                 
                 <!-- Connection Type -->
-                <StackPanel x:Name="ConnectionTypePanel" Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,5,10,5">
-                    <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <RadioButton Content="TCP" IsChecked="True" Margin="0,0,10,0" 
-                                 Checked="RadioButton_Checked" Tag="TCP" />
-                    <RadioButton Content="RTU" Margin="0,0,10,0" 
-                                 Checked="RadioButton_Checked" Tag="RTU" />
-                </StackPanel>
-                
-                <!-- Mode Selection -->
-                <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="10,5,0,5">
-                    <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <RadioButton Content="Master" IsChecked="{Binding IsMasterMode, Mode=TwoWay}" Margin="0,0,10,0" 
-                                 Checked="ModeRadioButton_Checked" Tag="Master" />
-                    <RadioButton Content="Slave" IsChecked="{Binding IsMasterMode, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}" Margin="0,0,10,0" 
-                                 Checked="ModeRadioButton_Checked" Tag="Slave" />
-                </StackPanel>
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- Connection Type and Mode -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" x:Name="ConnectionTypePanel" VerticalAlignment="Center">
+                        <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <RadioButton Content="TCP" Margin="0,0,10,0" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                     GroupName="ConnectionTypeGroup" Tag="TCP" Checked="RadioButton_Checked" 
+                                     IsChecked="{Binding IsTcpMode, Mode=OneWay}" />
+                        <RadioButton Content="RTU" Margin="0,0,10,0" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                                     GroupName="ConnectionTypeGroup" Tag="RTU" Checked="RadioButton_Checked" 
+                                     IsChecked="{Binding IsRtuMode, Mode=OneWay}" />
+                        
+                        <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <RadioButton Content="Master" IsChecked="{Binding IsMasterMode, Mode=TwoWay}" Margin="0,0,10,0" 
+                                     Checked="ModeRadioButton_Checked" Tag="Master" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+                        <RadioButton Content="Slave" IsChecked="{Binding IsMasterMode, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}" Margin="0,0,10,0" 
+                                     Checked="ModeRadioButton_Checked" Tag="Slave" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                    
+                    <!-- Timeout Setting -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Timeout (ms):" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBox Width="80" VerticalAlignment="Center" VerticalContentAlignment="Center" Padding="5,2" 
+                                 Text="{Binding ConnectionParameters.Timeout, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                 ToolTip="Request timeout in milliseconds. 0 = no timeout" />
+                    </StackPanel>
+                </Grid>
                 
                 <!-- TCP Parameters (shown when TCP is selected) -->
                 <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,5,0,5"
-                      x:Name="TcpParametersPanel" Visibility="Visible">
+                      x:Name="TcpParametersPanel" 
+                      Visibility="{Binding IsTcpMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -172,7 +189,8 @@
                 
                 <!-- RTU Parameters (hidden by default) -->
                 <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,5,0,5"
-                      x:Name="RtuParametersPanel" Visibility="Collapsed">
+                      x:Name="RtuParametersPanel" 
+                      Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />

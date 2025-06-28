@@ -431,6 +431,10 @@ namespace ModbusTerm.ViewModels
                     // Update selected profile name
                     _selectedProfileName = value?.ProfileName ?? "Default Profile";
                     OnPropertyChanged(nameof(SelectedProfileName));
+                    
+                    // Update connection type properties for binding
+                    OnPropertyChanged(nameof(IsTcpMode));
+                    OnPropertyChanged(nameof(IsRtuMode));
                 }
             }
         }
@@ -1439,6 +1443,31 @@ namespace ModbusTerm.ViewModels
         // SaveConnection and LoadConnection methods are implemented elsewhere
 
         /// <summary>
+        /// Gets or sets the current connection type
+        /// </summary>
+        public ConnectionType ConnectionType 
+        {
+            get => ConnectionParameters?.Type ?? ConnectionType.TCP;
+            set 
+            {
+                if (ConnectionType != value)
+                {
+                    ChangeConnectionType(value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets whether the current connection is TCP mode
+        /// </summary>
+        public bool IsTcpMode => ConnectionType == ConnectionType.TCP;
+        
+        /// <summary>
+        /// Gets whether the current connection is RTU mode
+        /// </summary>
+        public bool IsRtuMode => ConnectionType == ConnectionType.RTU;
+        
+        /// <summary>
         /// Change the connection type
         /// </summary>
         public void ChangeConnectionType(ConnectionType type)
@@ -1450,7 +1479,11 @@ namespace ModbusTerm.ViewModels
                     ? new TcpConnectionParameters { IsMaster = IsMasterMode }
                     : new RtuConnectionParameters { IsMaster = IsMasterMode };
 
+                // Notify all related properties
                 OnPropertyChanged(nameof(ConnectionParameters));
+                OnPropertyChanged(nameof(ConnectionType));
+                OnPropertyChanged(nameof(IsTcpMode));
+                OnPropertyChanged(nameof(IsRtuMode));
             }
         }
 
