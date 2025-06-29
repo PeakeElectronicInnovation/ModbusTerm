@@ -44,6 +44,7 @@ namespace ModbusTerm.ViewModels
         private ObservableCollection<DeviceScanResult> _deviceScanResults = new ObservableCollection<DeviceScanResult>();
         private CancellationTokenSource? _deviceScanCts;
         private ModbusDataType _selectedDataType = ModbusDataType.UInt16;
+        private bool _reverseRegisterOrder = false;
         private bool _autoScrollEventLog = true;
         private ObservableCollection<WriteDataItemViewModel> _writeDataInputs = new ObservableCollection<WriteDataItemViewModel>();
         private List<ModbusDataType> _availableDataTypes = new List<ModbusDataType>();
@@ -555,27 +556,42 @@ namespace ModbusTerm.ViewModels
         /// <summary>
         /// Changes the current Modbus data type used for formatting
         /// </summary>
-        public int SelectedDataType
+        public ModbusDataType SelectedDataType
         {
-            get => (int)_selectedDataType;
+            get => _selectedDataType;
             set
             {
-                if (value >= 0 && value < Enum.GetValues(typeof(ModbusDataType)).Length)
+                if (SetProperty(ref _selectedDataType, value))
                 {
-                    ModbusDataType newType = (ModbusDataType)value;
-                    if (SetProperty(ref _selectedDataType, newType))
+                    // Reformat response data with the new type
+                    if (_lastResponse != null && _lastResponse.Data != null)
                     {
-                        // Reformat response data with the new type
-                        if (_lastResponse != null && _lastResponse.Data != null)
-                        {
-                            ReformatResponseData(_lastResponse.Data);
-                        }
+                        ReformatResponseData(_lastResponse.Data);
+                    }
 
-                        // Update write data inputs when data type changes
-                        if (CurrentRequest.IsWriteFunction)
-                        {
-                            UpdateWriteDataInputs();
-                        }
+                    // Update write data inputs when data type changes
+                    if (CurrentRequest.IsWriteFunction)
+                    {
+                        UpdateWriteDataInputs();
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets or sets whether to reverse the Uint16 register order for multi-register values
+        /// </summary>
+        public bool ReverseRegisterOrder
+        {
+            get => _reverseRegisterOrder;
+            set
+            {
+                if (SetProperty(ref _reverseRegisterOrder, value))
+                {
+                    // Reformat response data when register order changes
+                    if (_lastResponse != null && _lastResponse.Data != null)
+                    {
+                        ReformatResponseData(_lastResponse.Data);
                     }
                 }
             }
@@ -2897,7 +2913,18 @@ namespace ModbusTerm.ViewModels
                         {
                             if (i + 1 < registers.Length)
                             {
-                                uint value = (uint)((registers[i] << 16) | registers[i + 1]);
+                                uint value;
+                                if (ReverseRegisterOrder) 
+                                {
+                                    // MSB first (non-standard)
+                                    value = (uint)((registers[i] << 16) | registers[i + 1]);
+                                }
+                                else
+                                {
+                                    // LSB first (standard Modbus)
+                                    value = (uint)((registers[i + 1] << 16) | registers[i]);
+                                }
+                                
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
@@ -2913,7 +2940,17 @@ namespace ModbusTerm.ViewModels
                         {
                             if (i + 1 < registers.Length)
                             {
-                                int value = (registers[i] << 16) | registers[i + 1];
+                                int value;
+                                if (ReverseRegisterOrder)
+                                {
+                                    // MSB first (non-standard)
+                                    value = (registers[i] << 16) | registers[i + 1];
+                                }
+                                else
+                                {
+                                    // LSB first (standard Modbus)
+                                    value = (registers[i + 1] << 16) | registers[i];
+                                }
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
@@ -2929,11 +2966,28 @@ namespace ModbusTerm.ViewModels
                         {
                             if (i + 1 < registers.Length)
                             {
-                                // Convert two 16-bit registers to a 32-bit integer
-                                uint intValue = (uint)((registers[i] << 16) | registers[i + 1]);
-
-                                // Reinterpret the 32-bit integer as a float
-                                float floatValue = BitConverter.ToSingle(BitConverter.GetBytes(intValue), 0);
+                                // Prepare byte array for the float value (4 bytes)
+                                byte[] bytes = new byte[4];
+                                
+                                if (ReverseRegisterOrder)
+                                {
+                                    // MSB first (non-standard)
+                                    bytes[0] = (byte)(registers[i + 1] & 0xFF);
+                                    bytes[1] = (byte)(registers[i + 1] >> 8);
+                                    bytes[2] = (byte)(registers[i] & 0xFF);
+                                    bytes[3] = (byte)(registers[i] >> 8);
+                                }
+                                else
+                                {
+                                    // LSB first (standard Modbus)
+                                    bytes[0] = (byte)(registers[i] & 0xFF);
+                                    bytes[1] = (byte)(registers[i] >> 8);
+                                    bytes[2] = (byte)(registers[i + 1] & 0xFF);
+                                    bytes[3] = (byte)(registers[i + 1] >> 8);
+                                }
+                                
+                                // Convert bytes to float
+                                float floatValue = BitConverter.ToSingle(bytes, 0);
 
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
@@ -2950,14 +3004,36 @@ namespace ModbusTerm.ViewModels
                         {
                             if (i + 3 < registers.Length)
                             {
-                                // Convert four 16-bit registers to a 64-bit long
-                                ulong longValue = (ulong)registers[i] << 48 |
-                                                 (ulong)registers[i + 1] << 32 |
-                                                 (ulong)registers[i + 2] << 16 |
-                                                 registers[i + 3];
+                                // Prepare byte array for the double value (8 bytes)
+                                byte[] bytes = new byte[8];
+                                
+                                if (ReverseRegisterOrder)
+                                {
+                                    // MSB first (non-standard)
+                                    bytes[0] = (byte)(registers[i + 3] & 0xFF);
+                                    bytes[1] = (byte)(registers[i + 3] >> 8);
+                                    bytes[2] = (byte)(registers[i + 2] & 0xFF);
+                                    bytes[3] = (byte)(registers[i + 2] >> 8);
+                                    bytes[4] = (byte)(registers[i + 1] & 0xFF);
+                                    bytes[5] = (byte)(registers[i + 1] >> 8);
+                                    bytes[6] = (byte)(registers[i] & 0xFF);
+                                    bytes[7] = (byte)(registers[i] >> 8);
+                                }
+                                else
+                                {
+                                    // LSB first (standard Modbus)
+                                    bytes[0] = (byte)(registers[i] & 0xFF);
+                                    bytes[1] = (byte)(registers[i] >> 8);
+                                    bytes[2] = (byte)(registers[i + 1] & 0xFF);
+                                    bytes[3] = (byte)(registers[i + 1] >> 8);
+                                    bytes[4] = (byte)(registers[i + 2] & 0xFF);
+                                    bytes[5] = (byte)(registers[i + 2] >> 8);
+                                    bytes[6] = (byte)(registers[i + 3] & 0xFF);
+                                    bytes[7] = (byte)(registers[i + 3] >> 8);
+                                }
 
-                                // Reinterpret the 64-bit long as a double
-                                double doubleValue = BitConverter.ToDouble(BitConverter.GetBytes(longValue), 0);
+                                // Convert bytes to double
+                                double doubleValue = BitConverter.ToDouble(bytes, 0);
 
                                 ResponseItems.Add(new ModbusResponseItem
                                 {

@@ -17,17 +17,17 @@ namespace ModbusTerm.Helpers
                 switch (dataType)
                 {
                     case ModbusDataType.UInt16:
-                        return "u16";
+                        return "Uint16";
                     case ModbusDataType.Int16:
-                        return "i16";
+                        return "Int16";
                     case ModbusDataType.UInt32:
-                        return "u32";
+                        return "Uint32";
                     case ModbusDataType.Int32:
-                        return "i32";
+                        return "Int32";
                     case ModbusDataType.Float32:
-                        return "f32";
+                        return "Float32";
                     case ModbusDataType.Float64:
-                        return "f64";
+                        return "Float64";
                     case ModbusDataType.AsciiString:
                         return "ASCII";
                     case ModbusDataType.Hex:

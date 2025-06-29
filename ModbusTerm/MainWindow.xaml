@@ -557,8 +557,17 @@
                                 <TextBlock Text="Data Type: " VerticalAlignment="Center" />
                                 <ComboBox Width="120" ItemsSource="{Binding AvailableDataTypes}"
                                           SelectedItem="{Binding SelectedDataType}" 
-                                          DisplayMemberPath="DisplayName" Margin="5,0,0,0">
+                                          Margin="5,0,0,0">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
                                 </ComboBox>
+                                <CheckBox Content="Reverse Uint16 order" Margin="10,0,0,0" 
+                                          IsChecked="{Binding ReverseRegisterOrder}" 
+                                          VerticalAlignment="Center" 
+                                          ToolTip="Enable if most significant Uint16 is sent first (not typical Modbus behavior)" />
                                 <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
                                         Content="Send" Style="{StaticResource StandardButtonStyle}" />
                                 <!-- RTU Device Scan Buttons -->
