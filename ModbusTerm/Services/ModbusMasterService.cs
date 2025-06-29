@@ -227,7 +227,7 @@ namespace ModbusTerm.Services
             }
             
             // Get the timeout value from the current connection parameters
-            int timeout = _currentParameters?.Timeout ?? 5000; // Default to 5 seconds if not set
+            int timeout = _currentParameters?.Timeout ?? 1000; // Default to 1 second if not set
 
             var responseInfo = new ModbusResponseInfo();
             var startTime = DateTime.Now;
@@ -515,7 +515,7 @@ namespace ModbusTerm.Services
             catch (OperationCanceledException)
             {
                 var executionTime = (DateTime.Now - startTime).TotalMilliseconds;
-                var timeoutMessage = $"Request timed out after {_currentParameters?.Timeout ?? 5000} ms";
+                var timeoutMessage = $"Request timed out after {_currentParameters?.Timeout ?? 1000} ms";
                 RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(timeoutMessage));
                 
                 // Mark connection as needing recovery after timeout

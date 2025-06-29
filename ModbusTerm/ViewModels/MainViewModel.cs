@@ -1481,8 +1481,70 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ExportEvents()
         {
-            // Implementation would use a file dialog and save the events
-            CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Export log functionality not yet implemented"));
+            try
+            {
+                // Create SaveFileDialog for selecting the file location
+                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Export Event Log",
+                    Filter = "CSV Files (*.csv)|*.csv|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                    DefaultExt = ".csv",
+                    FileName = $"ModbusTerm_Log_{DateTime.Now:yyyy-MM-dd_HHmm}"
+                };
+
+                // Show the dialog and get result
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    string filePath = saveFileDialog.FileName;
+                    bool isCsv = filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                    
+                    using (var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8))
+                    {
+                        // Write header
+                        if (isCsv)
+                        {
+                            writer.WriteLine("Time,Type,Message,Raw Data");
+                            
+                            // Write each event to CSV
+                            foreach (var evt in CommunicationEvents)
+                            {
+                                // Ensure fields are properly escaped for CSV
+                                string message = evt.Message?.Replace("\"", "\"\"") ?? string.Empty;
+                                string rawData = evt.RawData != null ? BitConverter.ToString(evt.RawData) : string.Empty;
+                                
+                                writer.WriteLine($"{evt.Timestamp:yyyy-MM-dd HH:mm:ss},\"{evt.TypeString}\",\"{message}\",\"{rawData}\"");
+                            }
+                        }
+                        else
+                        {
+                            // Plain text format
+                            writer.WriteLine("Event Log Export - ModbusTerm");
+                            writer.WriteLine("Generated: " + DateTime.Now);
+                            writer.WriteLine("----------------------------------");
+                            writer.WriteLine();
+                            
+                            // Write column headers with fixed width
+                            writer.WriteLine($"{"Time",-21} | {"Type",-7} | {"Message",-50} | Raw Data");
+                            writer.WriteLine(new string('-', 100));
+                            
+                            // Write each event
+                            foreach (var evt in CommunicationEvents)
+                            {
+                                string rawData = evt.RawData != null ? BitConverter.ToString(evt.RawData) : string.Empty;
+                                writer.WriteLine($"{evt.TimestampString,-21} | {evt.TypeString,-7} | {evt.Message,-50} | {rawData}");
+                            }
+                        }
+                    }
+                    
+                    // Add success message to the log
+                    CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Event log exported successfully to {filePath}"));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to export log: {ex.Message}"));
+            }
         }
 
         /// <summary>

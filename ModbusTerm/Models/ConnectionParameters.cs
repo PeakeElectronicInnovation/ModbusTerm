@@ -23,7 +23,7 @@ namespace ModbusTerm.Models
         /// <summary>
         /// Gets or sets the request timeout in milliseconds. A value of 0 means no timeout.
         /// </summary>
-        public int Timeout { get; set; } = 5000; // Default 5 seconds
+        public int Timeout { get; set; } = 1000; // Default 1 second
     }
 
     /// <summary>
