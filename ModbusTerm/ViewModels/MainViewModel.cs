@@ -1133,23 +1133,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ImportCoils()
         {
-            try
-            {
-                // For now, this is a placeholder implementation
-                // In a real implementation, this would open a file dialog and parse the file contents
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Import coils feature is not yet implemented"));
-                
-                // Note: When implementing, follow the same pattern as ImportRegisters()
-                // 1. Open file dialog
-                // 2. Parse file (CSV, JSON, etc.)
-                // 3. Create BooleanRegisterDefinition objects
-                // 4. Add to _slaveService.CoilDefinitions
-                // 5. Update UI
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import coils: {ex.Message}"));
-            }
+            // Use the global import functionality which handles all register types
+            // This provides consistency and ensures checksums are verified
+            ImportRegisters();
         }
         
         /// <summary>
@@ -1157,21 +1143,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ExportCoils()
         {
-            try
-            {
-                // For now, this is a placeholder implementation
-                // In a real implementation, this would open a save dialog and write the coil data to a file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Export coils feature is not yet implemented"));
-                
-                // Note: When implementing, follow the same pattern as ExportRegisters()
-                // 1. Open save dialog
-                // 2. Format coil data (CSV, JSON, etc.)
-                // 3. Write to file
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export coils: {ex.Message}"));
-            }
+            // Use the global export functionality which handles all register types
+            // This provides consistency and ensures checksums are calculated
+            ExportRegisters();
         }
 
         /// <summary>
@@ -1179,23 +1153,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ImportDiscreteInputs()
         {
-            try
-            {
-                // For now, this is a placeholder implementation
-                // In a real implementation, this would open a file dialog and parse the file contents
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Import discrete inputs feature is not yet implemented"));
-                
-                // Note: When implementing, follow the same pattern as ImportRegisters()
-                // 1. Open file dialog
-                // 2. Parse file (CSV, JSON, etc.)
-                // 3. Create BooleanRegisterDefinition objects
-                // 4. Add to _slaveService.DiscreteInputDefinitions
-                // 5. Update UI
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import discrete inputs: {ex.Message}"));
-            }
+            // Use the global import functionality which handles all register types
+            // This provides consistency and ensures checksums are verified
+            ImportRegisters();
         }
         
         /// <summary>
@@ -1203,21 +1163,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ExportDiscreteInputs()
         {
-            try
-            {
-                // For now, this is a placeholder implementation
-                // In a real implementation, this would open a save dialog and write the discrete input data to a file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Export discrete inputs feature is not yet implemented"));
-                
-                // Note: When implementing, follow the same pattern as ExportRegisters()
-                // 1. Open save dialog
-                // 2. Format discrete input data (CSV, JSON, etc.)
-                // 3. Write to file
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export discrete inputs: {ex.Message}"));
-            }
+            // Use the global export functionality which handles all register types
+            // This provides consistency and ensures checksums are calculated
+            ExportRegisters();
         }
         
         private void HighlightTimer_Tick(object? sender, EventArgs e)
@@ -2111,16 +2059,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ImportInputRegisters()
         {
-            try
-            {
-                // For now, this is just a placeholder
-                // In a real implementation, this would open a file dialog and import registers from a CSV or JSON file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Input register import not implemented yet"));
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to import input registers: {ex.Message}"));
-            }
+            // Use the global import functionality which handles all register types
+            // This provides consistency and ensures checksums are verified
+            ImportRegisters();
         }
         
         /// <summary>
@@ -2128,16 +2069,9 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ExportInputRegisters()
         {
-            try
-            {
-                // For now, this is just a placeholder
-                // In a real implementation, this would open a file dialog and export registers to a CSV or JSON file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Input register export not implemented yet"));
-            }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export input registers: {ex.Message}"));
-            }
+            // Use the global export functionality which handles all register types
+            // This provides consistency and ensures checksums are calculated
+            ExportRegisters();
         }
         
         /// <summary>
@@ -2218,11 +2152,70 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ImportRegisters()
         {
+            if (_slaveService == null)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent("Slave service is not available"));
+                return;
+            }
+
             try
             {
-                // For now, this is just a placeholder
-                // In a real implementation, this would open a file dialog and import registers from a CSV or JSON file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Register import not implemented yet"));
+                // Create an open file dialog
+                var dialog = new OpenFileDialog
+                {
+                    Filter = "Register Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Import Register Configurations",
+                    CheckFileExists = true
+                };
+
+                // Show dialog and process result
+                if (dialog.ShowDialog() == true)
+                {
+                    string filePath = dialog.FileName;
+                    OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Importing registers from {filePath}..."));
+
+                    // Use RegisterFileHandler to import all register types with checksum verification
+                    var result = Helpers.RegisterFileHandler.ImportAllRegisters(filePath);
+
+                    if (result.Success)
+                    {
+                        // Update all register collections with imported data
+                        _slaveService.RegisterDefinitions.Clear();
+                        foreach (var register in result.HoldingRegisters)
+                        {
+                            _slaveService.RegisterDefinitions.Add(register);
+                        }
+
+                        _slaveService.InputRegisterDefinitions.Clear();
+                        foreach (var register in result.InputRegisters)
+                        {
+                            _slaveService.InputRegisterDefinitions.Add(register);
+                        }
+
+                        _slaveService.CoilDefinitions.Clear();
+                        foreach (var coil in result.Coils)
+                        {
+                            _slaveService.CoilDefinitions.Add(coil);
+                        }
+
+                        _slaveService.DiscreteInputDefinitions.Clear();
+                        foreach (var discreteInput in result.DiscreteInputs)
+                        {
+                            _slaveService.DiscreteInputDefinitions.Add(discreteInput);
+                        }
+
+                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                            $"Successfully imported {result.HoldingRegisters.Count} holding registers, " +
+                            $"{result.InputRegisters.Count} input registers, " +
+                            $"{result.Coils.Count} coils, and " +
+                            $"{result.DiscreteInputs.Count} discrete inputs."));
+                    }
+                    else
+                    {
+                        OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent(
+                            $"Failed to import registers: {result.ErrorMessage}"));
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -2235,11 +2228,51 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void ExportRegisters()
         {
+            if (_slaveService == null)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent("Slave service is not available"));
+                return;
+            }
+
             try
             {
-                // For now, this is just a placeholder
-                // In a real implementation, this would open a file dialog and export registers to a CSV or JSON file
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Register export not implemented yet"));
+                // Create save file dialog
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "Register Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Export Register Configurations",
+                    DefaultExt = "json",
+                    AddExtension = true,
+                    FileName = $"ModbusTerm_Registers_{DateTime.Now:yyyyMMdd_HHmmss}"
+                };
+
+                // Show dialog and process result
+                if (dialog.ShowDialog() == true)
+                {
+                    string filePath = dialog.FileName;
+                    OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Exporting registers to {filePath}..."));
+
+                    // Use RegisterFileHandler to export all register types with checksumming
+                    bool success = Helpers.RegisterFileHandler.ExportAllRegisters(
+                        _slaveService.RegisterDefinitions,
+                        _slaveService.InputRegisterDefinitions,
+                        _slaveService.CoilDefinitions,
+                        _slaveService.DiscreteInputDefinitions,
+                        filePath);
+
+                    if (success)
+                    {
+                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                            $"Successfully exported {_slaveService.RegisterDefinitions.Count} holding registers, " +
+                            $"{_slaveService.InputRegisterDefinitions.Count} input registers, " +
+                            $"{_slaveService.CoilDefinitions.Count} coils, and " +
+                            $"{_slaveService.DiscreteInputDefinitions.Count} discrete inputs to {filePath}"));
+                    }
+                    else
+                    {
+                        OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent("Failed to export registers"));
+                    }
+                }
             }
             catch (Exception ex)
             {

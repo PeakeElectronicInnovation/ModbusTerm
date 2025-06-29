@@ -1,0 +1,434 @@
+using ModbusTerm.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace ModbusTerm.Helpers
+{
+    /// <summary>
+    /// Handles importing and exporting register configurations with checksum validation
+    /// </summary>
+    public static class RegisterFileHandler
+    {
+        /// <summary>
+        /// Exports all register types to a single file
+        /// </summary>
+        /// <param name="holdingRegisters">Collection of holding registers</param>
+        /// <param name="inputRegisters">Collection of input registers</param>
+        /// <param name="coils">Collection of coils</param>
+        /// <param name="discreteInputs">Collection of discrete inputs</param>
+        /// <param name="filePath">Path to save the file</param>
+        /// <returns>True if successful, false otherwise</returns>
+        public static bool ExportAllRegisters(
+            IEnumerable<RegisterDefinition> holdingRegisters,
+            IEnumerable<RegisterDefinition> inputRegisters,
+            IEnumerable<BooleanRegisterDefinition> coils,
+            IEnumerable<BooleanRegisterDefinition> discreteInputs,
+            string filePath)
+        {
+            try
+            {
+                var exportData = new
+                {
+                    Version = "1.0",
+                    Timestamp = DateTime.Now.ToString("o"),
+                    RegisterCount = holdingRegisters.Count() + inputRegisters.Count() + coils.Count() + discreteInputs.Count(),
+                    HoldingRegisters = holdingRegisters.ToList(),
+                    InputRegisters = inputRegisters.ToList(),
+                    Coils = coils.ToList(),
+                    DiscreteInputs = discreteInputs.ToList()
+                };
+
+                // Serialize to JSON
+                string jsonData = JsonSerializer.Serialize(exportData, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                // Calculate checksum
+                string checksum = CalculateChecksum(jsonData);
+
+                // Prepare final export data with checksum
+                var finalExportData = new
+                {
+                    Checksum = checksum,
+                    Data = exportData
+                };
+
+                // Serialize final data
+                string finalJsonData = JsonSerializer.Serialize(finalExportData, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                // Write to file
+                File.WriteAllText(filePath, finalJsonData);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Result class for importing all register types
+        /// </summary>
+        public class AllRegistersImportResult
+        {
+            public bool Success { get; set; }
+            public string ErrorMessage { get; set; }
+            public List<RegisterDefinition> HoldingRegisters { get; set; }
+            public List<RegisterDefinition> InputRegisters { get; set; }
+            public List<BooleanRegisterDefinition> Coils { get; set; }
+            public List<BooleanRegisterDefinition> DiscreteInputs { get; set; }
+        }
+
+        /// <summary>
+        /// Imports all register types from a file
+        /// </summary>
+        /// <param name="filePath">Path to the file</param>
+        /// <returns>Result containing all register types if successful</returns>
+        public static AllRegistersImportResult ImportAllRegisters(string filePath)
+        {
+            try
+            {
+                // Read file content
+                string jsonContent = File.ReadAllText(filePath);
+
+                // First, deserialize to get the checksum
+                using var document = JsonDocument.Parse(jsonContent);
+                var root = document.RootElement;
+
+                // Verify file structure
+                if (!root.TryGetProperty("Checksum", out var checksumProperty) ||
+                    !root.TryGetProperty("Data", out var dataProperty))
+                {
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Invalid file format" };
+                }
+
+                string storedChecksum = checksumProperty.GetString();
+                string dataJson = dataProperty.GetRawText();
+
+                // Calculate checksum of the data part
+                string calculatedChecksum = CalculateChecksum(dataJson);
+
+                // Verify checksum
+                if (storedChecksum != calculatedChecksum)
+                {
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Checksum verification failed. File may be corrupted or tampered with." };
+                }
+
+                // Check register type matches what we expect
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                // Full deserialization
+                var allRegisters = new AllRegistersImportResult
+                {
+                    Success = true,
+                    HoldingRegisters = new List<RegisterDefinition>(),
+                    InputRegisters = new List<RegisterDefinition>(),
+                    Coils = new List<BooleanRegisterDefinition>(),
+                    DiscreteInputs = new List<BooleanRegisterDefinition>()
+                };
+
+                // Extract the register collections
+                if (dataProperty.TryGetProperty("HoldingRegisters", out var holdingRegistersElement))
+                {
+                    allRegisters.HoldingRegisters = JsonSerializer.Deserialize<List<RegisterDefinition>>(holdingRegistersElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("InputRegisters", out var inputRegistersElement))
+                {
+                    allRegisters.InputRegisters = JsonSerializer.Deserialize<List<RegisterDefinition>>(inputRegistersElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("Coils", out var coilsElement))
+                {
+                    allRegisters.Coils = JsonSerializer.Deserialize<List<BooleanRegisterDefinition>>(coilsElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("DiscreteInputs", out var discreteInputsElement))
+                {
+                    allRegisters.DiscreteInputs = JsonSerializer.Deserialize<List<BooleanRegisterDefinition>>(discreteInputsElement.GetRawText(), options);
+                }
+
+                return allRegisters;
+            }
+            catch (Exception ex)
+            {
+                return new AllRegistersImportResult { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Imports all register types from a file
+        /// </summary>
+        /// <param name="filePath">Path to the file</param>
+        /// <returns>Result containing all register types if successful</returns>
+        public static AllRegistersImportResult ImportAllRegisters(string filePath)
+        {
+            try
+            {
+                // Read file content
+                string jsonContent = File.ReadAllText(filePath);
+
+                // First, deserialize to get the checksum
+                using var document = JsonDocument.Parse(jsonContent);
+                var root = document.RootElement;
+
+                // Verify file structure
+                if (!root.TryGetProperty("Checksum", out var checksumProperty) ||
+                    !root.TryGetProperty("Data", out var dataProperty))
+                {
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Invalid file format" };
+                }
+
+                string storedChecksum = checksumProperty.GetString();
+                string dataJson = dataProperty.GetRawText();
+
+                // Calculate checksum of the data part
+                string calculatedChecksum = CalculateChecksum(dataJson);
+
+                // Verify checksum
+                if (storedChecksum != calculatedChecksum)
+                {
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Checksum verification failed. File may be corrupted or tampered with." };
+                }
+
+                // Check register type matches what we expect
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                // Full deserialization
+                var allRegisters = new AllRegistersImportResult
+                {
+                    Success = true,
+                    HoldingRegisters = new List<RegisterDefinition>(),
+                    InputRegisters = new List<RegisterDefinition>(),
+                    Coils = new List<BooleanRegisterDefinition>(),
+                    DiscreteInputs = new List<BooleanRegisterDefinition>()
+                };
+
+                // Extract the register collections
+                if (dataProperty.TryGetProperty("HoldingRegisters", out var holdingRegistersElement))
+                {
+                    allRegisters.HoldingRegisters = JsonSerializer.Deserialize<List<RegisterDefinition>>(holdingRegistersElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("InputRegisters", out var inputRegistersElement))
+                {
+                    allRegisters.InputRegisters = JsonSerializer.Deserialize<List<RegisterDefinition>>(inputRegistersElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("Coils", out var coilsElement))
+                {
+                    allRegisters.Coils = JsonSerializer.Deserialize<List<BooleanRegisterDefinition>>(coilsElement.GetRawText(), options);
+                }
+
+                if (dataProperty.TryGetProperty("DiscreteInputs", out var discreteInputsElement))
+                {
+                    allRegisters.DiscreteInputs = JsonSerializer.Deserialize<List<BooleanRegisterDefinition>>(discreteInputsElement.GetRawText(), options);
+                }
+
+                return allRegisters;
+            }
+            catch (Exception ex)
+            {
+                return new AllRegistersImportResult { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        // File structure version to support future format changes
+        private const int FILE_VERSION = 1;
+        
+        /// <summary>
+        /// Container for serializing register data with checksums
+        /// </summary>
+        private class RegisterFileContainer
+        {
+            [JsonPropertyName("version")]
+            public int Version { get; set; } = FILE_VERSION;
+            
+            [JsonPropertyName("timestamp")]
+            public DateTime Timestamp { get; set; } = DateTime.Now;
+            
+            [JsonPropertyName("registerType")]
+            public string RegisterType { get; set; } = string.Empty;
+            
+            [JsonPropertyName("data")]
+            public string RegisterData { get; set; } = string.Empty;
+            
+            [JsonPropertyName("checksum")]
+            public string Checksum { get; set; } = string.Empty;
+            
+            [JsonPropertyName("metadata")]
+            public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+        }
+        
+        /// <summary>
+        /// Calculates a checksum for the provided data string
+        /// </summary>
+        private static string CalculateChecksum(string data)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                // Convert the input string to a byte array and compute the hash
+                byte[] bytes = Encoding.UTF8.GetBytes(data);
+                byte[] hash = sha256.ComputeHash(bytes);
+
+                // Convert the byte array to a hexadecimal string
+                StringBuilder result = new StringBuilder();
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    result.Append(hash[i].ToString("x2"));
+                }
+
+                return result.ToString();
+            }
+        }
+        
+        /// <summary>
+        /// Generates a checksum for the provided data string
+        /// </summary>
+        private static string GenerateChecksum(string data)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                // Convert the input string to a byte array and compute the hash
+                byte[] bytes = Encoding.UTF8.GetBytes(data);
+                byte[] hash = sha256.ComputeHash(bytes);
+                
+                // Convert the byte array to a hexadecimal string
+                StringBuilder result = new StringBuilder();
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    result.Append(hash[i].ToString("x2"));
+                }
+                
+                return result.ToString();
+            }
+        }
+        
+        /// <summary>
+        /// Verifies the checksum of the provided data
+        /// </summary>
+        private static bool VerifyChecksum(string data, string expectedChecksum)
+        {
+            string actualChecksum = CalculateChecksum(data);
+            return string.Equals(actualChecksum, expectedChecksum, StringComparison.OrdinalIgnoreCase);
+        }
+        
+        /// <summary>
+        /// Exports a collection of register definitions to a file with checksum
+        /// </summary>
+        public static bool ExportRegisters<T>(IEnumerable<T> registers, string filePath, string registerType)
+            where T : class
+        {
+            try
+            {
+                // Create container and serialize the register data
+                var registerData = JsonSerializer.Serialize(registers, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                });
+                
+                // Generate checksum
+                string checksum = GenerateChecksum(registerData);
+                
+                // Create container with metadata
+                var container = new RegisterFileContainer
+                {
+                    Version = FILE_VERSION,
+                    Timestamp = DateTime.Now,
+                    RegisterType = registerType,
+                    RegisterData = registerData,
+                    Checksum = checksum,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "ApplicationName", "ModbusTerm" },
+                        { "RegisterCount", registers is ICollection<T> collection ? collection.Count.ToString() : "Unknown" }
+                    }
+                };
+                
+                // Serialize the container to JSON
+                string json = JsonSerializer.Serialize(container, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                });
+                
+                // Write to file
+                File.WriteAllText(filePath, json);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Imports register definitions from a file with checksum verification
+        /// </summary>
+        public static (bool Success, IEnumerable<T>? Registers, string ErrorMessage) ImportRegisters<T>(string filePath, string expectedRegisterType)
+            where T : class
+        {
+            try
+            {
+                // Read the file content
+                string json = File.ReadAllText(filePath);
+                
+                // Deserialize the container
+                var container = JsonSerializer.Deserialize<RegisterFileContainer>(json);
+                
+                // Validate container
+                if (container == null)
+                {
+                    return (false, null, "Invalid file format");
+                }
+                
+                // Check register type
+                if (container.RegisterType != expectedRegisterType)
+                {
+                    return (false, null, $"Incorrect register type. Expected: {expectedRegisterType}, Found: {container.RegisterType}");
+                }
+                
+                // Verify checksum
+                if (!VerifyChecksum(container.RegisterData, container.Checksum))
+                {
+                    return (false, null, "Checksum verification failed. The file may have been corrupted or tampered with.");
+                }
+                
+                // Deserialize the register data
+                var registers = JsonSerializer.Deserialize<List<T>>(container.RegisterData);
+                
+                if (registers == null)
+                {
+                    return (false, null, "Failed to deserialize register data");
+                }
+                
+                return (true, registers, string.Empty);
+            }
+            catch (JsonException ex)
+            {
+                return (false, null, $"Invalid JSON format: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return (false, null, $"Error importing register file: {ex.Message}");
+            }
+        }
+    }
+}
