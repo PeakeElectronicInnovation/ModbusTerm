@@ -30,6 +30,8 @@ namespace ModbusTerm.Services
         private NotifyingSlaveDataStore? _dataStore;
         private ConnectionParameters? _currentParameters;
         private Dictionary<ushort, ushort> _registerValues = new Dictionary<ushort, ushort>();
+        private bool _isConnected = false;
+        private ConnectionStatus _connectionStatus = ConnectionStatus.Disconnected;
 
         /// <summary>
         /// Event raised when a communication event occurs
@@ -45,11 +47,41 @@ namespace ModbusTerm.Services
         /// Event raised when a coil is changed by an external Modbus master
         /// </summary>
         public event EventHandler<CoilChangedEventArgs>? CoilChanged;
+        
+        /// <summary>
+        /// Event raised when a device scan result is received (not used in slave mode)
+        /// Implemented only to satisfy the IModbusService interface
+        /// </summary>
+#pragma warning disable CS0067 // Event is never used
+        public event EventHandler<DeviceScanResult>? DeviceScanResultReceived;
+#pragma warning restore CS0067
 
+        /// <summary>
+        /// Gets whether a device scan is currently active (always false in slave mode)
+        /// </summary>
+        public bool IsDeviceScanActive => false;
+        
         /// <summary>
         /// Gets whether the connection is currently open
         /// </summary>
-        public bool IsConnected => (_tcpListener != null || (_serialPort?.IsOpen == true)) && _cancellationTokenSource != null;
+        public bool IsConnected 
+        { 
+            get => _isConnected; 
+            private set 
+            { 
+                _isConnected = value; 
+                ConnectionStatus = value ? ConnectionStatus.Connected : ConnectionStatus.Disconnected; 
+            } 
+        }
+
+        /// <summary>
+        /// Gets the current connection status
+        /// </summary>
+        public ConnectionStatus ConnectionStatus 
+        { 
+            get => _connectionStatus; 
+            private set => _connectionStatus = value; 
+        }
 
         /// <summary>
         /// Gets whether the service is in master mode
@@ -348,22 +380,51 @@ namespace ModbusTerm.Services
         {
             try
             {
-                if (_currentParameters?.Type == ConnectionType.TCP)
+                if (_cancellationTokenSource != null)
                 {
-                    StopTcpSlave();
+                    _cancellationTokenSource.Cancel();
+                    _cancellationTokenSource = null;
                 }
-                else
+                
+                if (_network != null && _slave != null)
                 {
-                    StopRtuSlave();
+                    // Stop the slave - NModbus doesn't have StopListening
+                    _slave = null;
+                    _network = null;
+                    _dataStore = null;
                 }
+                
+                _tcpListener?.Stop();
+                _tcpListener = null;
+                
+                if (_serialPort != null && _serialPort.IsOpen)
+                {
+                    _serialPort.Close();
+                }
+                _serialPort?.Dispose();
+                _serialPort = null;
 
-                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent("Slave stopped"));
+                IsConnected = false;
+                ConnectionStatus = ConnectionStatus.Disconnected;
+                
+                return Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Disconnect error: {ex.Message}"));
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Error disconnecting: {ex.Message}"));
+                return Task.FromException(ex);
             }
-
+        }
+        
+        /// <summary>
+        /// Scan for devices - not implemented in slave mode
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token (not used in slave mode)</param>
+        /// <returns>Completed task</returns>
+        public Task ScanForDevicesAsync(CancellationToken cancellationToken)
+        {
+            // Device scanning is not supported in slave mode
+            RaiseCommunicationEvent(CommunicationEvent.CreateWarningEvent("Device scanning is not available in slave mode"));
             return Task.CompletedTask;
         }
 

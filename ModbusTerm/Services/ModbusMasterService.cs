@@ -1,8 +1,13 @@
 using ModbusTerm.Models;
 using NModbus;
 using NModbus.Serial;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ModbusTerm.Services
 {
@@ -17,11 +22,18 @@ namespace ModbusTerm.Services
         private bool _isMaster = true;
         private ConnectionParameters? _currentParameters;
         private bool _needsConnectionRecovery = false;
+        private bool _isDeviceScanActive = false;
+        private CancellationTokenSource? _deviceScanCts;
 
         /// <summary>
         /// Event raised when a communication event occurs
         /// </summary>
         public event EventHandler<CommunicationEvent>? CommunicationEventOccurred;
+
+        /// <summary>
+        /// Event raised when a device scan result is received
+        /// </summary>
+        public event EventHandler<DeviceScanResult>? DeviceScanResultReceived;
 
         /// <summary>
         /// Gets whether the connection is currently open
@@ -33,6 +45,11 @@ namespace ModbusTerm.Services
         /// Gets whether the service is in master mode
         /// </summary>
         public bool IsMaster => _isMaster;
+
+        /// <summary>
+        /// Gets whether a device scan is currently in progress
+        /// </summary>
+        public bool IsDeviceScanActive => _isDeviceScanActive;
 
         /// <summary>
         /// Connect using the specified connection parameters
@@ -575,11 +592,310 @@ namespace ModbusTerm.Services
         }
 
         /// <summary>
-        /// Raise the CommunicationEvent
+        /// Helper method to raise the CommunicationEventOccurred event
         /// </summary>
-        private void RaiseCommunicationEvent(CommunicationEvent evt)
+        private void RaiseCommunicationEvent(CommunicationEvent eventInfo)
         {
-            CommunicationEventOccurred?.Invoke(this, evt);
+            CommunicationEventOccurred?.Invoke(this, eventInfo);
+        }
+        
+        /// <summary>
+        /// Attempts to reset the RTU connection with multiple retries
+        /// </summary>
+        /// <param name="rtuParams">The RTU connection parameters</param>
+        /// <param name="reason">The reason for the reset (for logging)</param>
+        /// <returns>True if the connection was successfully reset, false otherwise</returns>
+        private bool ResetRtuConnectionWithRetry(RtuConnectionParameters rtuParams, string reason)
+        {
+            const int maxRetries = 3;
+            const int retryDelayMs = 1000; // 1 second delay between retries
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                    $"Resetting RTU connection after {reason}... (Attempt {attempt} of {maxRetries})"));
+                
+                try
+                {
+                    // Store current RTU parameters
+                    string comPort = rtuParams.ComPort;
+                    int baudRate = rtuParams.UseCustomBaudRate ? rtuParams.CustomBaudRate : rtuParams.BaudRate;
+                    Parity parity = rtuParams.Parity;
+                    int dataBits = rtuParams.DataBits;
+                    StopBits stopBits = rtuParams.StopBits;
+                    
+                    // Dispose current connection
+                    _master?.Dispose();
+                    _master = null;
+                    
+                    // Ensure port is closed before disposing
+                    if (_serialPort != null)
+                    {
+                        if (_serialPort.IsOpen)
+                            _serialPort.Close();
+                            
+                        _serialPort.Dispose();
+                        _serialPort = null;
+                    }
+                    
+                    // Longer pause for retries to give hardware time to fully reset
+                    int pauseTime = attempt > 1 ? retryDelayMs : 100;
+                    RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                        $"Waiting {pauseTime}ms before reopening port..."));
+                    Task.Delay(pauseTime).Wait();
+                    
+                    // Reopen serial port with same parameters
+                    _serialPort = new SerialPort
+                    {
+                        PortName = comPort,
+                        BaudRate = baudRate,
+                        Parity = parity,
+                        DataBits = dataBits,
+                        StopBits = stopBits
+                    };
+                    
+                    _serialPort.Open();
+                    
+                    // Recreate Modbus RTU master
+                    var factory = new ModbusFactory();
+                    var adapter = new SerialPortAdapter(_serialPort);
+                    _master = factory.CreateRtuMaster(adapter);
+                    
+                    RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                        $"RTU connection reset successfully on attempt {attempt}"));
+                    return true; // Success
+                }
+                catch (Exception ex)
+                {
+                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(
+                        $"Failed to reset RTU connection on attempt {attempt}: {ex.Message}"));
+                        
+                    // Clean up any partially initialized resources
+                    try
+                    {
+                        _master?.Dispose();
+                        _master = null;
+                        
+                        if (_serialPort != null)
+                        {
+                            if (_serialPort.IsOpen)
+                                _serialPort.Close();
+                                
+                            _serialPort.Dispose();
+                            _serialPort = null;
+                        }
+                    }
+                    catch { /* Ignore cleanup errors */ }
+                    
+                    // If this is not the last attempt, wait before retrying
+                    if (attempt < maxRetries)
+                    {
+                        RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                            $"Waiting {retryDelayMs}ms before retry..."));
+                        Task.Delay(retryDelayMs).Wait();
+                    }
+                }
+            }
+            
+            // All retries failed
+            RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(
+                $"Failed to reset RTU connection after {maxRetries} attempts"));
+            return false;
+        }
+
+        /// <summary>
+        /// Helper method to raise the DeviceScanResultReceived event
+        /// </summary>
+        private void RaiseDeviceScanResult(DeviceScanResult result)
+        {
+            DeviceScanResultReceived?.Invoke(this, result);
+        }
+
+        /// <summary>
+        /// Scans for Modbus devices by sending requests to all possible slave IDs
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token to stop the scan</param>
+        public async Task ScanForDevicesAsync(CancellationToken cancellationToken)
+        {
+            if (_master == null)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent("Not connected"));
+                return;
+            }
+
+            if (_isDeviceScanActive)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent("Device scan already in progress"));
+                return;
+            }
+
+            try
+            {
+                _isDeviceScanActive = true;
+                _deviceScanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                
+                // Get the timeout value from the current connection parameters
+                int timeout = _currentParameters?.Timeout ?? 1000; // Default to 1 second if not set
+
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent("Starting device scan..."));
+
+                // Define range of valid Modbus addresses (1-247)
+                byte minAddress = 1;
+                byte maxAddress = 247;
+
+                int devicesFound = 0;
+                List<byte> foundDevices = new List<byte>();
+
+                // Create a read holding registers request for address 0
+                var parameters = new ReadFunctionParameters
+                {
+                    FunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+                    StartAddress = 0, // Read from address 0
+                    Quantity = 1      // Read just one register
+                };
+
+                // Scan each slave ID
+                for (byte slaveId = minAddress; slaveId <= maxAddress; slaveId++)
+                {
+                    // Check for cancellation
+                    if (_deviceScanCts.Token.IsCancellationRequested)
+                    {
+                        RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Device scan stopped at address {slaveId}. Found {devicesFound} devices."));
+                        break;
+                    }
+
+                    parameters.SlaveId = slaveId;
+                    var scanResult = new DeviceScanResult
+                    {
+                        SlaveId = slaveId,
+                        Responded = false,
+                        ResponseStatus = ResponseStatus.Timeout
+                    };
+
+                    RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Scanning slave ID {slaveId}..."));
+                    
+                    // Create a stopwatch to measure response time
+                    var stopwatch = Stopwatch.StartNew();
+                    
+                    try
+                    {
+                        // Use a task with timeout for the request
+                        using var cts = new CancellationTokenSource(timeout);
+                        
+                        // Create descriptive message for sent event
+                        string sentMessage = $"Scan: Read holding register from address 0 (FC3) - Slave ID {slaveId}";
+                        
+                        // Create and log sent event
+                        byte[] requestBytes = { slaveId, (byte)ModbusFunctionCode.ReadHoldingRegisters, 0x00, 0x00, 0x00, 0x01 };
+                        RaiseCommunicationEvent(CommunicationEvent.CreateSentEvent(requestBytes, sentMessage));
+                        
+                        // Execute the actual request with timeout token
+                        var registers = await Task.Run(() => _master.ReadHoldingRegistersAsync(
+                            slaveId,
+                            0, // Start address
+                            1  // Quantity
+                        )).WaitAsync(cts.Token);
+                        
+                        stopwatch.Stop();
+                        
+                        // Device responded successfully
+                        scanResult.Responded = true;
+                        scanResult.ResponseTime = stopwatch.Elapsed.TotalMilliseconds;
+                        scanResult.IsException = false;
+                        scanResult.ResponseStatus = ResponseStatus.Success;
+                        
+                        byte[] responseBytes = GetByteArrayFromUshorts(registers);
+                        string receivedMessage = $"Found device at slave ID {slaveId} (response in {scanResult.ResponseTime:F1} ms)";
+                        RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
+                        
+                        devicesFound++;
+                        foundDevices.Add(slaveId);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        stopwatch.Stop();
+                        // Timeout - no response
+                        scanResult.Responded = false;
+                        scanResult.ResponseTime = timeout;
+                        scanResult.ResponseStatus = ResponseStatus.Timeout;
+                        RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"No response from slave ID {slaveId} (timeout)"));
+                        
+                        // Reconnect the serial port after timeout for RTU mode
+                        if (_serialPort != null && _currentParameters is RtuConnectionParameters rtuParams)
+                        {
+                            if (!ResetRtuConnectionWithRetry(rtuParams, "timeout"))
+                            {
+                                // If all retries failed, stop the scan
+                                break;
+                            }
+                        }
+                    }
+                    catch (NModbus.SlaveException ex)
+                    {
+                        stopwatch.Stop();
+                        // Device responded with exception
+                        scanResult.Responded = true;
+                        scanResult.ResponseTime = stopwatch.Elapsed.TotalMilliseconds;
+                        scanResult.IsException = true;
+                        scanResult.ExceptionCode = ex.SlaveExceptionCode;
+                        scanResult.ExceptionMessage = ex.Message;
+                        scanResult.ResponseStatus = ResponseStatus.Exception;
+                        
+                        string receivedMessage = $"Found device at slave ID {slaveId} (responded with exception: {ex.Message}, in {scanResult.ResponseTime:F1} ms)";
+                        RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent(receivedMessage));
+                        
+                        devicesFound++;
+                        foundDevices.Add(slaveId);
+                    }
+                    catch (Exception ex)
+                    {
+                        stopwatch.Stop();
+                        // Other error
+                        scanResult.Responded = false;
+                        scanResult.ResponseTime = stopwatch.Elapsed.TotalMilliseconds;
+                        scanResult.ResponseStatus = ResponseStatus.Timeout;
+                        RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Error scanning slave ID {slaveId}: {ex.Message}"));
+                        
+                        // Also reset connection on other errors for RTU mode
+                        if (_serialPort != null && _currentParameters is RtuConnectionParameters rtuParams)
+                        {
+                            if (!ResetRtuConnectionWithRetry(rtuParams, "error"))
+                            {
+                                // If all retries failed, stop the scan
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Raise the scan result event
+                    RaiseDeviceScanResult(scanResult);
+                    
+                    // Small delay between scans to avoid overwhelming the bus
+                    await Task.Delay(50, _deviceScanCts.Token);
+                }
+
+                // Scanning complete
+                if (!_deviceScanCts.Token.IsCancellationRequested)
+                {
+                    string deviceList = string.Join(", ", foundDevices);
+                    RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                        $"Device scan complete. Found {devicesFound} devices: {(deviceList.Length > 0 ? deviceList : "None")}"));
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent("Device scan cancelled."));
+            }
+            catch (Exception ex)
+            {
+                RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Error during device scan: {ex.Message}"));
+            }
+            finally
+            {
+                _isDeviceScanActive = false;
+                _deviceScanCts?.Dispose();
+                _deviceScanCts = null;
+            }
         }
         
         /// <summary>

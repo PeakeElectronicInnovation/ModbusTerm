@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -39,6 +40,9 @@ namespace ModbusTerm.ViewModels
         private ObservableCollection<ModbusResponseItem> _responseItems = new ObservableCollection<ModbusResponseItem>();
         private string _responseStatus = "-";
         private string _responseTime = "- ms";
+        private bool _isDeviceScanActive = false;
+        private ObservableCollection<DeviceScanResult> _deviceScanResults = new ObservableCollection<DeviceScanResult>();
+        private CancellationTokenSource? _deviceScanCts;
         private ModbusDataType _selectedDataType = ModbusDataType.UInt16;
         private bool _autoScrollEventLog = true;
         private ObservableCollection<WriteDataItemViewModel> _writeDataInputs = new ObservableCollection<WriteDataItemViewModel>();
@@ -99,6 +103,16 @@ namespace ModbusTerm.ViewModels
         /// Command to clear the event log
         /// </summary>
         public RelayCommand ClearEventsCommand { get; }
+
+        /// <summary>
+        /// Command to start scanning for Modbus devices
+        /// </summary>
+        public RelayCommand ScanForDevicesCommand { get; }
+
+        /// <summary>
+        /// Command to stop an ongoing device scan
+        /// </summary>
+        public RelayCommand StopDeviceScanCommand { get; }
 
         /// <summary>
         /// Command to export the event log
@@ -571,6 +585,32 @@ namespace ModbusTerm.ViewModels
         /// Gets whether the current function is a write function
         /// </summary>
         public bool IsWriteFunction => CurrentRequest?.IsWriteFunction ?? false;
+        
+        /// <summary>
+        /// Gets or sets whether a device scan is currently in progress
+        /// </summary>
+        public bool IsDeviceScanActive
+        {
+            get => _isDeviceScanActive;
+            private set 
+            { 
+                if (SetProperty(ref _isDeviceScanActive, value))
+                {
+                    // Update UI to reflect scan mode changes
+                    OnPropertyChanged(nameof(IsInScanMode));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets whether we're currently in device scan mode (affects how the response panel is displayed)
+        /// </summary>
+        public bool IsInScanMode => IsDeviceScanActive || (_deviceScanResults?.Count > 0 && _lastResponse == null);
+
+        /// <summary>
+        /// Gets the collection of device scan results
+        /// </summary>
+        public ObservableCollection<DeviceScanResult> DeviceScanResults => _deviceScanResults;
 
         /// <summary>
         /// Gets whether the current function is a multiple write function (WriteMultipleCoils or WriteMultipleRegisters)
@@ -667,6 +707,9 @@ namespace ModbusTerm.ViewModels
             // Subscribe to events
             _masterService.CommunicationEventOccurred += OnCommunicationEvent;
             _slaveService.CommunicationEventOccurred += OnCommunicationEvent;
+            
+            // Subscribe to device scan events
+            _masterService.DeviceScanResultReceived += OnDeviceScanResultReceived;
 
             // Set default connection parameters
             _connectionParameters = new TcpConnectionParameters();
@@ -688,6 +731,8 @@ namespace ModbusTerm.ViewModels
             ExportEventsCommand = new RelayCommand(_ => ExportEvents());
             SaveConnectionCommand = new RelayCommand(_ => SaveConnection());
             RemoveProfileCommand = new RelayCommand(_ => RemoveProfile(), _ => !string.IsNullOrEmpty(SelectedProfileName) && SelectedProfileName != "Default Profile");
+            ScanForDevicesCommand = new RelayCommand(_ => StartDeviceScan(), _ => CanScanForDevices());
+            StopDeviceScanCommand = new RelayCommand(_ => StopDeviceScan(), _ => CanStopDeviceScan());
             
             // Load profiles and default profile
             LoadProfilesAsync();
@@ -1438,6 +1483,217 @@ namespace ModbusTerm.ViewModels
         {
             // Implementation would use a file dialog and save the events
             CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Export log functionality not yet implemented"));
+        }
+
+        /// <summary>
+        /// Determines if a device scan can be started
+        /// </summary>
+        private bool CanScanForDevices()
+        {
+            return _currentService != null && 
+                   IsConnected && 
+                   IsMasterMode && 
+                   !IsDeviceScanActive && 
+                   ConnectionParameters is RtuConnectionParameters;
+        }
+        
+        /// <summary>
+        /// Determines if an active device scan can be stopped
+        /// </summary>
+        private bool CanStopDeviceScan()
+        {
+            return IsDeviceScanActive;
+        }
+        
+        /// <summary>
+        /// Starts scanning for Modbus devices on the current RTU connection
+        /// </summary>
+        private void StartDeviceScan()
+        {
+            if (!(_currentService is ModbusMasterService masterService) ||
+                !(ConnectionParameters is RtuConnectionParameters) ||
+                !IsConnected ||
+                IsDeviceScanActive)
+            {
+                return;
+            }
+
+            try
+            {
+                // Clear previous scan results
+                _deviceScanResults.Clear();
+                
+                // Create cancellation token source
+                _deviceScanCts = new CancellationTokenSource();
+                
+                // Set scanning state
+                IsDeviceScanActive = true;
+                
+                // Update the Response panel
+                ResponseStatus = "Scanning for Modbus devices...";
+                // Clear response items to prepare for scan results
+                ResponseItems.Clear();
+                
+                // Log the start of scanning
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Starting device scan..."));
+                
+                // Start the scan asynchronously
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await masterService.ScanForDevicesAsync(_deviceScanCts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Application.Current.Dispatcher.Invoke(() => 
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Device scan cancelled")));
+                    }
+                    catch (Exception ex)
+                    {
+                        Application.Current.Dispatcher.Invoke(() => 
+                            OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Device scan error: {ex.Message}")));
+                    }
+                    finally
+                    {
+                        // Reset scan state
+                        IsDeviceScanActive = false;
+                        _deviceScanCts = null;
+                        
+                        // Update UI and command states
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ScanForDevicesCommand.RaiseCanExecuteChanged();
+                            StopDeviceScanCommand.RaiseCanExecuteChanged();
+                            
+                            // Show summary of found devices
+                            var respondingDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Success);
+                            var errorDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Exception);
+                            var timeoutDevices = _deviceScanResults.Count - respondingDevices - errorDevices;
+                            var scanSummary = $"Scan complete: {respondingDevices} device(s) responded successfully, {errorDevices} with exceptions, {timeoutDevices} timed out";
+                            
+                            // Update both the event log and response panel
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(scanSummary));
+                            ResponseStatus = scanSummary;
+                            
+                            // At this point we've already been adding scan results to the response items
+                            // Just refresh the UI and sort the results by slave ID
+                            if (ResponseItems.Count > 0)
+                            {
+                                // Make a copy of the current items
+                                var sortedItems = ResponseItems.OrderBy(i => i.Address).ToList();
+                                
+                                // Clear and repopulate in sorted order
+                                ResponseItems.Clear();
+                                foreach (var item in sortedItems)
+                                {
+                                    ResponseItems.Add(item);
+                                }
+                                
+                                // Refresh UI
+                                OnPropertyChanged(nameof(HasLastResponse));
+                            }
+                            // Update UI to show the response items
+                            OnPropertyChanged(nameof(HasLastResponse));
+                        });
+                    }
+                });
+                
+                // Refresh command states
+                ScanForDevicesCommand.RaiseCanExecuteChanged();
+                StopDeviceScanCommand.RaiseCanExecuteChanged();
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to start device scan: {ex.Message}"));
+                IsDeviceScanActive = false;
+            }
+        }
+        
+        /// <summary>
+        /// Stops an active device scan
+        /// </summary>
+        private void StopDeviceScan()
+        {
+            if (!IsDeviceScanActive || _deviceScanCts == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // Cancel the scan operation
+                _deviceScanCts.Cancel();
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Stopping device scan..."));
+                
+                // Command states will be updated when the scan task completes in the finally block
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Error stopping device scan: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Handles device scan result events
+        /// </summary>
+        private void OnDeviceScanResultReceived(object? sender, DeviceScanResult result)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                // Add to collection
+                _deviceScanResults.Add(result);
+                
+                // Create a communication event for each result
+                string status;
+                switch (result.ResponseStatus)
+                {
+                    case Models.ResponseStatus.Success:
+                        status = "responded successfully";
+                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Device ID {result.SlaveId} {status} in {result.ResponseTime:F1} ms"));
+                        
+                        // Update response time display
+                        ResponseTime = $"{result.ResponseTime:F1} ms";
+                        
+                        // Add to response items for display in the table
+                        ResponseItems.Add(new ModbusResponseItem
+                        {
+                            Address = result.SlaveId,
+                            Value = $"{result.ResponseTime:F1} ms"
+                        });
+                        break;
+                        
+                    case Models.ResponseStatus.Exception:
+                        status = $"responded with exception: {result.ExceptionMessage}";
+                        OnCommunicationEvent(this, CommunicationEvent.CreateWarningEvent($"Device ID {result.SlaveId} {status}"));
+                        
+                        // Add to response items with exception info
+                        ResponseItems.Add(new ModbusResponseItem
+                        {
+                            Address = result.SlaveId,
+                            Value = $"Exception: {result.ExceptionMessage}"
+                        });
+                        break;
+                        
+                    case Models.ResponseStatus.Timeout:
+                    default:
+                        status = "timed out";
+                        // Don't log timeouts to avoid flooding the log
+                        // We also don't add timeouts to the response items to avoid clutter
+                        break;
+                }
+                
+                // Update the Response panel with current scan progress
+                var respondingDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Success);
+                var errorDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Exception);
+                var timeoutDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Timeout);
+                
+                ResponseStatus = $"Scanning: ID {result.SlaveId} - {respondingDevices} devices responded, {errorDevices} exceptions, {timeoutDevices} timeouts";
+                
+                // Update the UI
+                OnPropertyChanged(nameof(DeviceScanResults));
+                OnPropertyChanged(nameof(HasLastResponse));
+            });
         }
 
         // SaveConnection and LoadConnection methods are implemented elsewhere

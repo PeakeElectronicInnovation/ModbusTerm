@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using ModbusTerm.Models;
 
 namespace ModbusTerm.Services
@@ -13,6 +16,11 @@ namespace ModbusTerm.Services
         event EventHandler<CommunicationEvent> CommunicationEventOccurred;
 
         /// <summary>
+        /// Event raised when a device scan result is received
+        /// </summary>
+        event EventHandler<DeviceScanResult>? DeviceScanResultReceived;
+
+        /// <summary>
         /// Gets whether the connection is currently open
         /// </summary>
         bool IsConnected { get; }
@@ -21,6 +29,11 @@ namespace ModbusTerm.Services
         /// Gets whether the service is in master mode
         /// </summary>
         bool IsMaster { get; }
+
+        /// <summary>
+        /// Gets whether a device scan is currently in progress
+        /// </summary>
+        bool IsDeviceScanActive { get; }
 
         /// <summary>
         /// Connect using the specified connection parameters
@@ -40,6 +53,13 @@ namespace ModbusTerm.Services
         /// <param name="parameters">The function parameters</param>
         /// <returns>The response data</returns>
         Task<object?> ExecuteRequestAsync(ModbusFunctionParameters parameters);
+
+        /// <summary>
+        /// Scans for Modbus devices by sending requests to all possible slave IDs
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token to stop the scan</param>
+        /// <returns>A task representing the scanning operation</returns>
+        Task ScanForDevicesAsync(CancellationToken cancellationToken);
 
         /// <summary>
         /// Get a list of available COM ports (for RTU mode)

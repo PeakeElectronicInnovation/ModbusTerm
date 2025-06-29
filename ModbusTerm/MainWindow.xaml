@@ -539,22 +539,38 @@
                                         Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <Button Margin="15,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
                                         Content="Send" Style="{StaticResource StandardButtonStyle}" />
+                                <!-- RTU Device Scan Buttons -->
+                                <StackPanel Orientation="Horizontal" Margin="15,0,0,0"
+                                          Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Padding="8,4" Command="{Binding ScanForDevicesCommand}"
+                                            Content="Scan for devices" Style="{StaticResource StandardButtonStyle}" 
+                                            ToolTip="Scan for Modbus devices on RTU network" />
+                                    <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopDeviceScanCommand}"
+                                            Content="Stop scan" Style="{StaticResource StandardButtonStyle}" 
+                                            ToolTip="Stop the current device scan" />
+                                </StackPanel>
                             </StackPanel>
                             
                             <!-- Data Type for Read Functions -->
-                            <StackPanel Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,12,10,5"
+                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,12,10,5"
                                         Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                <TextBlock Text="Data Type:" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                <ComboBox Width="180" SelectedIndex="{Binding SelectedDataType, Mode=TwoWay}" ItemsSource="{Binding AvailableDataTypes}" x:Name="DataTypeComboBox">
-                                    <!-- Display friendly names using the ModbusDataTypeConverter -->
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
+                                <TextBlock Text="Data Type: " VerticalAlignment="Center" />
+                                <ComboBox Width="120" ItemsSource="{Binding AvailableDataTypes}"
+                                          SelectedItem="{Binding SelectedDataType}" 
+                                          DisplayMemberPath="DisplayName" Margin="5,0,0,0">
                                 </ComboBox>
-                                <Button Margin="15,0,10,0" Padding="8,4" Command="{Binding SendRequestCommand}"
+                                <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
                                         Content="Send" Style="{StaticResource StandardButtonStyle}" />
+                                <!-- RTU Device Scan Buttons -->
+                                <StackPanel Orientation="Horizontal" Margin="10,0,0,0"
+                                          Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Padding="8,4" Command="{Binding ScanForDevicesCommand}"
+                                            Content="Scan for devices" Style="{StaticResource StandardButtonStyle}" 
+                                            ToolTip="Scan for Modbus devices on RTU network" />
+                                    <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopDeviceScanCommand}"
+                                            Content="Stop scan" Style="{StaticResource StandardButtonStyle}" 
+                                            ToolTip="Stop the current device scan" />
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                     </GroupBox>
@@ -600,11 +616,65 @@
                                                                           ItemsSource="{Binding ResponseItems}"
                                                                           Style="{StaticResource ModernDataGridStyle}"
                                                                           ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                                                    <!-- No DataGrid.Resources needed - using direct visibility binding -->
                                                                     <DataGrid.Columns>
-                                                                        <DataGridTextColumn Header="Address" Width="100" Binding="{Binding Address}" />
-                                                                        <DataGridTextColumn Header="Value" Width="*" Binding="{Binding Value}" />
-                                                                        <DataGridTextColumn Header="Hex" Width="150" Binding="{Binding HexValue}" />
-                                                                        <DataGridTextColumn Header="Binary" Width="200" Binding="{Binding BinaryValue}" />
+                                                                        <!-- Address/Slave ID Column -->
+                                                                        <DataGridTextColumn Width="100" Binding="{Binding Address}">
+                                                                            <DataGridTextColumn.Header>
+                                                                                <TextBlock>
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock">
+                                                                                            <Setter Property="Text" Value="Address" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding DataContext.IsInScanMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                                                    <Setter Property="Text" Value="Slave ID" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                            </DataGridTextColumn.Header>
+                                                                        </DataGridTextColumn>
+                                                                        
+                                                                        <!-- Value/Response time Column -->
+                                                                        <DataGridTextColumn Width="*" Binding="{Binding Value}">
+                                                                            <DataGridTextColumn.Header>
+                                                                                <TextBlock>
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock">
+                                                                                            <Setter Property="Text" Value="Value" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding DataContext.IsInScanMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                                                    <Setter Property="Text" Value="Response time" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                            </DataGridTextColumn.Header>
+                                                                        </DataGridTextColumn>
+                                                                        
+                                                                        <!-- Hex Column (hidden in scan mode) -->
+                                                                        <DataGridTextColumn Header="Hex" Width="150" Binding="{Binding HexValue}">
+                                                                            <DataGridTextColumn.Visibility>
+                                                                                <Binding Path="DataContext.IsInScanMode" RelativeSource="{RelativeSource AncestorType=DataGrid}">
+                                                                                    <Binding.Converter>
+                                                                                        <converters:InverseBooleanToVisibilityConverter />
+                                                                                    </Binding.Converter>
+                                                                                </Binding>
+                                                                            </DataGridTextColumn.Visibility>
+                                                                        </DataGridTextColumn>
+                                                                        
+                                                                        <!-- Binary Column (hidden in scan mode) -->
+                                                                        <DataGridTextColumn Header="Binary" Width="200" Binding="{Binding BinaryValue}">
+                                                                            <DataGridTextColumn.Visibility>
+                                                                                <Binding Path="DataContext.IsInScanMode" RelativeSource="{RelativeSource AncestorType=DataGrid}">
+                                                                                    <Binding.Converter>
+                                                                                        <converters:InverseBooleanToVisibilityConverter />
+                                                                                    </Binding.Converter>
+                                                                                </Binding>
+                                                                            </DataGridTextColumn.Visibility>
+                                                                        </DataGridTextColumn>
                                                                     </DataGrid.Columns>
                                                                 </DataGrid>
                                                             </Setter.Value>
