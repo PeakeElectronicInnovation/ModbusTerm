@@ -1,4 +1,6 @@
+.vs/
 ModbusTerm/bin/
 ModbusTerm/obj/
 WixPackage/
-.vs/
+Release Files/
+ModbusTerm.sln

@@ -8,7 +8,7 @@
         xmlns:helpers="clr-namespace:ModbusTerm.Helpers"
         xmlns:viewmodels="clr-namespace:ModbusTerm.ViewModels"
         mc:Ignorable="d"
-        Title="ModbusTerm - Modbus Testing Tool" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+        Title="Modbus Toolbox - Modbus Develpment Tools" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
         Width="900" Height="950" MinWidth="800" MinHeight="800"
         WindowStartupLocation="CenterScreen">
     
