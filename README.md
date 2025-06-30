@@ -4,7 +4,7 @@ A comprehensive Modbus testing application supporting both TCP and RTU connectio
 
 ## Version 1.0.0
 
-Released on 2025-06-30, the very first version! Probably a few bugs - please report them to me! Some known issues:
+Released on 2025-06-30 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)), the very first version! Probably a few bugs - please report them to me! Some known issues:
 
 - Register configuration in slave doesn't like registers being added once the slave server is started (Connect is clicked). Workaround - add registers, ignore complaints, navigate away from slave mode and then back before updating your register values and hitting Connect again.
 - ASCII data type is still a work in progress, hoping to have this implemented properly in the next version.
@@ -112,7 +112,7 @@ Want to test it out but don't have any modbus devices to test with? Run two inst
 - Uses NModbus library for Modbus protocol implementation
 - MVVM architecture pattern
 - WPF-based user interface
-- Serializable profiles for configuration persistence
+- Serialisable profiles for configuration persistence
 
 ## License
 
