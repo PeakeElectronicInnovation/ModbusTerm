@@ -1,4 +1,4 @@
-# ModbusTerm
+# Modbus Toolbox
 
 A comprehensive Modbus testing application supporting both TCP and RTU connections with master and slave device functionality. ModbusTerm provides an easy-to-use interface for testing, debugging, and simulating Modbus devices in industrial automation environments.
 

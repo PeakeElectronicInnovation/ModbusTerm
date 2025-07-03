@@ -1,0 +1,9 @@
+Modbus Toolbox change notes
+
+TODO:
+1. Custom baud rates
+2. ASCII mode byte swap option (currently MSB first)
+3. Implement HEX mode properly
+4. Fix slave register error once connected
+5. Add chart option in master mode
+6. Allow for more registers to be written (more screen realestate/scroll bars in request builder)

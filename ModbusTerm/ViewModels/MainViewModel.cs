@@ -3050,8 +3050,16 @@ namespace ModbusTerm.ViewModels
                         foreach (var register in registers)
                         {
                             // Each register contains 2 ASCII characters
-                            chars.Add((char)(register >> 8));    // High byte
-                            chars.Add((char)(register & 0xFF));  // Low byte
+                            if (ReverseRegisterOrder) // Swap bytes if needed
+                            {
+                                chars.Add((char)(register & 0xFF));  // Low byte first
+                                chars.Add((char)(register >> 8));    // High byte second
+                            }
+                            else
+                            {
+                                chars.Add((char)(register >> 8));    // High byte first
+                                chars.Add((char)(register & 0xFF));  // Low byte second
+                            }
                         }
 
                         // Create a single string item from all registers
