@@ -1790,8 +1790,6 @@ namespace ModbusTerm.ViewModels
                 _availableDataTypes.Add(ModbusDataType.Int32);
                 _availableDataTypes.Add(ModbusDataType.Float32);
                 _availableDataTypes.Add(ModbusDataType.Float64);
-                _availableDataTypes.Add(ModbusDataType.Hex);
-                _availableDataTypes.Add(ModbusDataType.Binary);
                 _availableDataTypes.Add(ModbusDataType.AsciiString);
             }
 
@@ -2311,8 +2309,6 @@ namespace ModbusTerm.ViewModels
             _availableDataTypes.Add(ModbusDataType.Int32);
             _availableDataTypes.Add(ModbusDataType.Float32);
             _availableDataTypes.Add(ModbusDataType.Float64);
-            _availableDataTypes.Add(ModbusDataType.Hex);
-            _availableDataTypes.Add(ModbusDataType.Binary);
             
             // Notify UI of changes
             OnPropertyChanged(nameof(AvailableDataTypes));
@@ -2890,7 +2886,9 @@ namespace ModbusTerm.ViewModels
                             ResponseItems.Add(new ModbusResponseItem
                             {
                                 Address = startAddress + i,
-                                Value = registers[i]
+                                Value = registers[i],
+                                DataType = dataType,
+                                RawValues = new[] { registers[i] }
                             });
                         }
                         break;
@@ -2902,7 +2900,9 @@ namespace ModbusTerm.ViewModels
                             ResponseItems.Add(new ModbusResponseItem
                             {
                                 Address = startAddress + i,
-                                Value = (short)registers[i]
+                                Value = (short)registers[i],
+                                DataType = dataType,
+                                RawValues = new[] { registers[i] }
                             });
                         }
                         break;
@@ -2928,7 +2928,9 @@ namespace ModbusTerm.ViewModels
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
-                                    Value = value
+                                    Value = value,
+                                    DataType = dataType,
+                                    RawValues = new[] { registers[i], registers[i + 1] }
                                 });
                             }
                         }
@@ -2954,7 +2956,9 @@ namespace ModbusTerm.ViewModels
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
-                                    Value = value
+                                    Value = value,
+                                    DataType = dataType,
+                                    RawValues = new[] { registers[i], registers[i + 1] }
                                 });
                             }
                         }
@@ -2992,7 +2996,9 @@ namespace ModbusTerm.ViewModels
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
-                                    Value = floatValue
+                                    Value = floatValue,
+                                    DataType = dataType,
+                                    RawValues = new[] { registers[i], registers[i + 1] }
                                 });
                             }
                         }
@@ -3038,7 +3044,9 @@ namespace ModbusTerm.ViewModels
                                 ResponseItems.Add(new ModbusResponseItem
                                 {
                                     Address = startAddress + i,
-                                    Value = doubleValue
+                                    Value = doubleValue,
+                                    DataType = dataType,
+                                    RawValues = new[] { registers[i], registers[i + 1], registers[i + 2], registers[i + 3] }
                                 });
                             }
                         }
@@ -3064,10 +3072,13 @@ namespace ModbusTerm.ViewModels
 
                         // Create a single string item from all registers
                         string asciiValue = new string(chars.ToArray()).TrimEnd('\0');
+                        // For ASCII string, save all register values
                         ResponseItems.Add(new ModbusResponseItem
                         {
                             Address = startAddress,
-                            Value = asciiValue
+                            Value = asciiValue,
+                            DataType = dataType,
+                            RawValues = registers.ToArray()
                         });
                         break;
                 }
@@ -3081,7 +3092,9 @@ namespace ModbusTerm.ViewModels
                     ResponseItems.Add(new ModbusResponseItem
                     {
                         Address = startAddress + i,
-                        Value = coils[i]
+                        Value = coils[i],
+                        DataType = ModbusDataType.Binary,
+                        RawValues = new ushort[] { coils[i] ? (ushort)1 : (ushort)0 }
                     });
                 }
             }

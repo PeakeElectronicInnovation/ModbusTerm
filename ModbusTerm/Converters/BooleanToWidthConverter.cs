@@ -21,7 +21,7 @@ namespace ModbusTerm.Converters
             }
             
             // Parse the parameter string
-            string param = parameter as string;
+            string? param = parameter as string;
             if (string.IsNullOrEmpty(param) || !param.Contains("|"))
             {
                 return double.NaN; // Return NaN if parameter is invalid

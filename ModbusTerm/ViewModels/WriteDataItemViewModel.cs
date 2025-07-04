@@ -125,8 +125,6 @@ namespace ModbusTerm.ViewModels
                 AvailableDataTypes.Add(ModbusDataType.Int32);
                 AvailableDataTypes.Add(ModbusDataType.Float32);
                 AvailableDataTypes.Add(ModbusDataType.Float64);
-                AvailableDataTypes.Add(ModbusDataType.Hex);
-                AvailableDataTypes.Add(ModbusDataType.Binary);
                 AvailableDataTypes.Add(ModbusDataType.AsciiString);
             }
             
@@ -150,8 +148,6 @@ namespace ModbusTerm.ViewModels
                 ModbusDataType.Int32 => 2,
                 ModbusDataType.Float32 => 2,
                 ModbusDataType.Float64 => 4,
-                ModbusDataType.Hex => 1,
-                ModbusDataType.Binary => 1,
                 ModbusDataType.AsciiString => 1, // This is per register, might need special handling for strings
                 _ => 1
             };
