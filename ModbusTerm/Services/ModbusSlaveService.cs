@@ -600,8 +600,10 @@ namespace ModbusTerm.Services
             {
                 if (_dataStore == null)
                 {
-                    RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"Cannot update input register {register.Address}: Data store not initialized"));
-                    return;
+                    // Initialize data store if null to allow updating registers after disconnect
+                    _dataStore = new NotifyingSlaveDataStore();
+                    _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                    _dataStore.CoilChanged += DataStore_CoilChanged;
                 }
                 
                 // Prepare values based on data type
@@ -682,6 +684,14 @@ namespace ModbusTerm.Services
                 {
                     throw new InvalidOperationException($"Register at address {register.Address} with size {register.RegisterCount} would overlap with existing register at {conflictingReg.Address}");
                 }
+            }
+
+            // Make sure data store is initialized before updating register value
+            if (_dataStore == null)
+            {
+                _dataStore = new NotifyingSlaveDataStore();
+                _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                _dataStore.CoilChanged += DataStore_CoilChanged;
             }
 
             RegisterDefinitions.Add(register);
@@ -794,6 +804,14 @@ namespace ModbusTerm.Services
                 throw new InvalidOperationException($"Coil at address {coil.Address} already exists");
             }
 
+            // Make sure data store is initialized before updating coil value
+            if (_dataStore == null)
+            {
+                _dataStore = new NotifyingSlaveDataStore();
+                _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                _dataStore.CoilChanged += DataStore_CoilChanged;
+            }
+
             CoilDefinitions.Add(coil);
             UpdateCoilValue(coil);
         }
@@ -808,6 +826,14 @@ namespace ModbusTerm.Services
             if (existing != null)
             {
                 throw new InvalidOperationException($"Discrete input at address {input.Address} already exists");
+            }
+
+            // Make sure data store is initialized before updating discrete input value
+            if (_dataStore == null)
+            {
+                _dataStore = new NotifyingSlaveDataStore();
+                _dataStore.HoldingRegisterChanged += DataStore_HoldingRegisterChanged;
+                _dataStore.CoilChanged += DataStore_CoilChanged;
             }
 
             DiscreteInputDefinitions.Add(input);
