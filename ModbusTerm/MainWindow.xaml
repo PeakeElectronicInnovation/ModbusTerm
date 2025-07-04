@@ -320,6 +320,17 @@
                     
                     <!-- Connect/Disconnect buttons -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- Slave ID control - only visible in slave mode -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0"
+                                    Visibility="{Binding IsSlaveMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="Slave ID:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <TextBox Text="{Binding SlaveId, UpdateSourceTrigger=PropertyChanged}" 
+                                     Width="50"
+                                     Height="24"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="Set the Modbus Slave ID (1-247)" />
+                        </StackPanel>
+                        
                         <!-- Connection status LED indicator -->
                         <Grid Margin="0,0,10,0">
                             <!-- LED housing (outer ring) -->

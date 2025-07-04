@@ -43,6 +43,7 @@ namespace ModbusTerm.ViewModels
         private bool _isDeviceScanActive = false;
         private ObservableCollection<DeviceScanResult> _deviceScanResults = new ObservableCollection<DeviceScanResult>();
         private CancellationTokenSource? _deviceScanCts;
+        private byte _slaveId = 1;
         private ModbusDataType _selectedDataType = ModbusDataType.UInt16;
         private bool _reverseRegisterOrder = false;
         private bool _autoScrollEventLog = true;
@@ -603,7 +604,7 @@ namespace ModbusTerm.ViewModels
         public bool IsWriteFunction => CurrentRequest?.IsWriteFunction ?? false;
         
         /// <summary>
-        /// Gets or sets whether a device scan is currently in progress
+        /// Gets whether a device scan is currently active
         /// </summary>
         public bool IsDeviceScanActive
         {
@@ -614,6 +615,35 @@ namespace ModbusTerm.ViewModels
                 {
                     // Update UI to reflect scan mode changes
                     OnPropertyChanged(nameof(IsInScanMode));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets or sets the Slave ID for Modbus slave mode
+        /// </summary>
+        public byte SlaveId
+        {
+            get => _slaveId;
+            set
+            {
+                // Validate Modbus slave ID range (1-247)
+                byte newValue = value;
+                if (newValue < 1)
+                {
+                    newValue = 1;
+                }
+                else if (newValue > 247)
+                {
+                    newValue = 247;
+                }
+                
+                if (SetProperty(ref _slaveId, newValue))
+                {
+                    if (_slaveService != null)
+                    {
+                        _slaveService.SlaveId = newValue;
+                    }
                 }
             }
         }

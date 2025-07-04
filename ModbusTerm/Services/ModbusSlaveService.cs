@@ -25,7 +25,23 @@ namespace ModbusTerm.Services
         private TcpListener? _tcpListener;
         private SerialPort? _serialPort;
         private bool _isMaster = false;
-        private readonly byte _slaveId = 1;
+        private byte _slaveId = 1;
+
+        /// <summary>
+        /// Gets or sets the Modbus Slave ID
+        /// </summary>
+        public byte SlaveId
+        {
+            get => _slaveId;
+            set
+            {
+                if (_slaveId != value)
+                {
+                    _slaveId = value;
+                    RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Slave ID changed to {value}"));
+                }
+            }
+        }
         private CancellationTokenSource? _cancellationTokenSource;
         private NotifyingSlaveDataStore? _dataStore;
         private ConnectionParameters? _currentParameters;
