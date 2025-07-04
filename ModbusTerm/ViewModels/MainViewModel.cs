@@ -1295,6 +1295,14 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
+                // If a device scan is running, stop it first
+                if (IsDeviceScanActive && _deviceScanCts != null)
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Stopping device scan due to disconnect"));
+                    StopDeviceScan();
+                    // Note: StopDeviceScan only cancels the token, the scan task will finish in its own time
+                }
+
                 if (_currentService != null)
                 {
                     await _currentService.DisconnectAsync();
