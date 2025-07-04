@@ -1,10 +1,27 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace ModbusTerm.Models
 {
     /// <summary>
     /// Base class for Modbus connection parameters
     /// </summary>
-    public abstract class ConnectionParameters
+    public abstract class ConnectionParameters : INotifyPropertyChanged
     {
+        /// <summary>
+        /// Event raised when a property value changes
+        /// </summary>
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// Raises the PropertyChanged event
+        /// </summary>
+        /// <param name="propertyName">Name of the property that changed</param>
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
         /// <summary>
         /// Gets or sets the connection type (TCP or RTU)
         /// </summary>
@@ -77,15 +94,39 @@ namespace ModbusTerm.Models
         /// </summary>
         public System.IO.Ports.StopBits StopBits { get; set; } = System.IO.Ports.StopBits.One;
 
+        private bool _useCustomBaudRate = false;
         /// <summary>
         /// Gets or sets whether a custom baud rate should be used
         /// </summary>
-        public bool UseCustomBaudRate { get; set; } = false;
+        public bool UseCustomBaudRate
+        {
+            get => _useCustomBaudRate;
+            set
+            {
+                if (_useCustomBaudRate != value)
+                {
+                    _useCustomBaudRate = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
+        private int _customBaudRate = 19200;
         /// <summary>
         /// Gets or sets the custom baud rate when UseCustomBaudRate is true
         /// </summary>
-        public int CustomBaudRate { get; set; } = 19200;
+        public int CustomBaudRate
+        {
+            get => _customBaudRate;
+            set
+            {
+                if (_customBaudRate != value)
+                {
+                    _customBaudRate = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         
         public RtuConnectionParameters()
         {

@@ -450,7 +450,7 @@ namespace ModbusTerm.Services
         /// </summary>
         public int[] GetStandardBaudRates()
         {
-            return new int[] { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
+            return new int[] { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, -1 };
         }
 
         // Sample registers have been removed as per user request - users will now add their own registers

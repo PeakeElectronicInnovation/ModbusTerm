@@ -584,11 +584,11 @@ namespace ModbusTerm.Services
         }
 
         /// <summary>
-        /// Get a list of standard baud rates
+        /// Get a list of standard baud rates with an additional custom option (-1)
         /// </summary>
         public int[] GetStandardBaudRates()
         {
-            return new int[] { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
+            return new int[] { 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, -1 };
         }
 
         /// <summary>

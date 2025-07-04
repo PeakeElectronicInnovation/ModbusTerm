@@ -25,6 +25,8 @@
         <helpers:ModbusDataTypeConverter x:Key="ModbusDataTypeConverter"/>
         <helpers:CheckboxLabelConverter x:Key="CheckboxLabelConverter"/>
         <converters:ConnectionTypeConverter x:Key="ConnectionTypeConverter" />
+        <converters:BooleanToWidthConverter x:Key="BooleanToWidthConverter" />
+        <converters:BaudRateConverter x:Key="BaudRateConverter" />
         
         <!-- Custom DataGridRow style with orange selection -->
         <Style x:Key="CustomDataGridRowStyle" TargetType="DataGridRow">
@@ -223,15 +225,50 @@
                     </Grid>
                     
                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Baud Rate:" VerticalAlignment="Center" Margin="0,0,5,0" />
-                    <ComboBox Grid.Row="0" Grid.Column="3" Margin="0,0,0,0"
-                              ItemsSource="{Binding StandardBaudRates}"
-                              SelectedItem="{Binding ConnectionParameters.BaudRate, Mode=TwoWay}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                    <Grid Grid.Row="0" Grid.Column="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- Standard Baud Rate Dropdown (always full width) -->
+                        <ComboBox Grid.Column="0" Margin="0,0,0,0"
+                                  Name="BaudRateComboBox"
+                                  HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding StandardBaudRates}"
+                                  SelectedItem="{Binding ConnectionParameters.BaudRate, Mode=TwoWay}"
+                                  SelectionChanged="BaudRateComboBox_SelectionChanged">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <!-- Display "Custom..." for value -1, otherwise show the actual value -->
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding}" Value="-1">
+                                                        <Setter Property="Text" Value="Custom..." />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        
+                        <!-- Custom Baud Rate Input (to the right of dropdown) -->
+                        <Border Grid.Column="1" Margin="2,0,0,0" BorderThickness="1" BorderBrush="#FFABADB3" Padding="2"
+                               Background="#FFFFFFFF" Width="110"
+                               HorizontalAlignment="Left"
+                               Visibility="{Binding ConnectionParameters.UseCustomBaudRate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Text="Custom:" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                <TextBox Text="{Binding ConnectionParameters.CustomBaudRate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                         VerticalContentAlignment="Center" BorderThickness="0" />
+                            </DockPanel>
+                        </Border>
+                    </Grid>
                     
                     <!-- Second row of RTU parameters -->
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Parity:" VerticalAlignment="Center" Margin="0,5,5,0" />

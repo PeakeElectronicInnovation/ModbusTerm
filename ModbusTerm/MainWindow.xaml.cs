@@ -338,4 +338,43 @@ public partial class MainWindow : Window
             }
         }
     }
+    
+    /// <summary>
+    /// Event handler for the baud rate combo box selection changed event.
+    /// Toggles the visibility of the custom baud rate input field.
+    /// </summary>
+    /// <param name="sender">The combo box that triggered the event</param>
+    /// <param name="e">Event arguments</param>
+    private void BaudRateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Debug logging
+        System.Diagnostics.Debug.WriteLine($"BaudRateComboBox_SelectionChanged event fired");
+        
+        if (_viewModel == null || !(sender is ComboBox))
+            return;
+            
+        // Check if we have RTU connection parameters
+        if (_viewModel.ConnectionParameters is RtuConnectionParameters rtuParams)
+        {
+            System.Diagnostics.Debug.WriteLine($"Current BaudRate: {rtuParams.BaudRate}");
+            
+            // If the selected baud rate is -1 (Custom), show the custom baud rate input
+            bool isCustomSelected = rtuParams.BaudRate == -1;
+            System.Diagnostics.Debug.WriteLine($"isCustomSelected: {isCustomSelected}");
+            
+            rtuParams.UseCustomBaudRate = isCustomSelected;
+            System.Diagnostics.Debug.WriteLine($"UseCustomBaudRate set to: {rtuParams.UseCustomBaudRate}");
+            
+            // If switching away from custom, restore a standard baud rate if needed
+            if (!isCustomSelected && rtuParams.BaudRate == -1)
+            {
+                rtuParams.BaudRate = 9600; // Default to 9600 as fallback
+                System.Diagnostics.Debug.WriteLine($"Restored BaudRate to 9600");
+            }
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("_viewModel.ConnectionParameters is not RtuConnectionParameters");
+        }
+    }
 }
