@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace ModbusTerm.Models
 {
     /// <summary>
@@ -20,7 +23,7 @@ namespace ModbusTerm.Models
     /// <summary>
     /// Base class for Modbus function parameters
     /// </summary>
-    public class ModbusFunctionParameters
+    public class ModbusFunctionParameters : INotifyPropertyChanged
     {
         /// <summary>
         /// Gets or sets the function code
@@ -32,10 +35,23 @@ namespace ModbusTerm.Models
         /// </summary>
         public byte SlaveId { get; set; } = 1;
 
+        private ushort _startAddress = 0;
+        
         /// <summary>
         /// Gets or sets the starting address for the operation
         /// </summary>
-        public ushort StartAddress { get; set; } = 0;
+        public ushort StartAddress
+        {
+            get => _startAddress;
+            set
+            {
+                if (_startAddress != value)
+                {
+                    _startAddress = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the desired data type for displaying results
@@ -60,6 +76,20 @@ namespace ModbusTerm.Models
         /// Checks if this is a write function
         /// </summary>
         public bool IsWriteFunction => !IsReadFunction;
+
+        /// <summary>
+        /// Occurs when a property value changes
+        /// </summary>
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// Raises the PropertyChanged event
+        /// </summary>
+        /// <param name="propertyName">Name of the property that changed</param>
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
 
         /// <summary>
         /// Checks if this function operates on coils (boolean data)

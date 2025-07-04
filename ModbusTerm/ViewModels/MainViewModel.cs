@@ -484,16 +484,34 @@ namespace ModbusTerm.ViewModels
             get => _currentRequest;
             set
             {
+                // Unsubscribe from old instance's events if it implements INotifyPropertyChanged
+                if (_currentRequest is INotifyPropertyChanged oldNotify)
+                {
+                    oldNotify.PropertyChanged -= CurrentRequest_PropertyChanged;
+                }
+
                 if (SetProperty(ref _currentRequest, value))
                 {
+                    // Subscribe to new instance's events if it implements INotifyPropertyChanged
+                    if (_currentRequest is INotifyPropertyChanged newNotify)
+                    {
+                        newNotify.PropertyChanged += CurrentRequest_PropertyChanged;
+                    }
+
                     // Update available data types when the function changes
                     UpdateAvailableDataTypes();
 
                     // Update write data inputs
                     UpdateWriteDataInputs();
 
+                    // Update write data items address calculations
+                    UpdateWriteDataItemAddresses();
+
                     // Notify property changes
                     OnPropertyChanged(nameof(IsWriteFunction));
+                    // Only notify about valid properties
+                    // OnPropertyChanged(nameof(IsMultipleWriteFunction));
+                    // OnPropertyChanged(nameof(IsReadFunction));
                 }
             }
         }
@@ -3493,6 +3511,47 @@ namespace ModbusTerm.ViewModels
             request.Values.Add(0);
 
             CurrentRequest = request;
+        }
+        /// <summary>
+        /// Updates the addresses of all write data items based on the current start address
+        /// </summary>
+        private void UpdateWriteDataItemAddresses()
+        {
+            if (CurrentRequest == null || _writeDataInputs == null)
+                return;
+                
+            ushort startAddress = CurrentRequest.StartAddress;
+            int currentOffset = 0;
+            
+            for (int i = 0; i < _writeDataInputs.Count; i++)
+            {
+                var item = _writeDataInputs[i];
+                item.Index = i;
+                item.UpdateAddress(startAddress + currentOffset);
+                
+                if (i < _writeDataInputs.Count - 1 && !CurrentRequest.IsCoilFunction)
+                {
+                    currentOffset += item.GetRegisterCount();
+                }
+                else if (i < _writeDataInputs.Count - 1)
+                {
+                    currentOffset++;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Event handler for property changes in the current request
+        /// </summary>
+        /// <param name="sender">The sender of the event</param>
+        /// <param name="e">The event arguments</param>
+        private void CurrentRequest_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // If the StartAddress property has changed, update all write data item addresses
+            if (e.PropertyName == nameof(ModbusFunctionParameters.StartAddress))
+            {
+                UpdateWriteDataItemAddresses();
+            }
         }
     }
 }

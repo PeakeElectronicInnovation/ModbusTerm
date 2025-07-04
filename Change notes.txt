@@ -7,5 +7,6 @@ TODO:
 4. DONE Fix slave register error once disconnected
 5. Add periodic request enable and timing, and add chart option in master mode
 6. Allow for more registers to be written (more screen realestate/scroll bars in request builder)
-7. Add slave ID setting for slave mode
-8. Stop scan on disconnect
+7. DONE Add slave ID setting for slave mode
+8. DONE Stop scan on disconnect
+9. Check response panel feedback for every request type

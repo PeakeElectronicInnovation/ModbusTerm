@@ -11,10 +11,12 @@ namespace ModbusTerm.ViewModels
     public class WriteDataItemViewModel : ViewModelBase
     {
         private string _value = string.Empty;
+        private string _name = string.Empty;
         private ModbusDataType _selectedDataType;
         private ObservableCollection<ModbusDataType> _availableDataTypes;
         private bool _isCoilWrite;
         private bool _booleanValue;
+        private int _index; // Index in the collection for address calculation
         
         /// <summary>
         /// Gets or sets the string value for this write data item
@@ -25,6 +27,35 @@ namespace ModbusTerm.ViewModels
             set => SetProperty(ref _value, value);
         }
         
+        /// <summary>
+        /// Gets or sets the name for this write data item
+        /// </summary>
+        public string Name
+        {
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
+
+        /// <summary>
+        /// Gets or sets the index in the collection for address calculation
+        /// </summary>
+        public int Index
+        {
+            get => _index;
+            set
+            {
+                if (SetProperty(ref _index, value))
+                {
+                    OnPropertyChanged(nameof(Address));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the calculated address based on the start address and index
+        /// </summary>
+        public int Address { get; set; }
+
         /// <summary>
         /// Gets or sets the boolean value for coil operations
         /// </summary>
@@ -81,10 +112,16 @@ namespace ModbusTerm.ViewModels
         /// Initializes a new instance of the WriteDataItemViewModel class
         /// </summary>
         /// <param name="isCoilWrite">True if this is for a coil write operation</param>
-        public WriteDataItemViewModel(bool isCoilWrite = false)
+        /// <param name="index">Index in the collection (used for address calculation)</param>
+        /// <param name="startAddress">Starting address for the Modbus request</param>
+        /// <param name="name">Optional name for this item</param>
+        public WriteDataItemViewModel(bool isCoilWrite = false, int index = 0, int startAddress = 0, string name = "")
         {
             _availableDataTypes = new ObservableCollection<ModbusDataType>();
             _isCoilWrite = isCoilWrite;
+            _index = index;
+            _name = name;
+            Address = startAddress + index;
             
             // Initialize data types based on whether it's a coil or register write
             UpdateAvailableDataTypes(isCoilWrite);
@@ -101,6 +138,16 @@ namespace ModbusTerm.ViewModels
                 _value = "0";
                 _selectedDataType = ModbusDataType.UInt16;
             }
+        }
+        
+        /// <summary>
+        /// Updates the address based on a new start address
+        /// </summary>
+        /// <param name="startAddress">The new start address</param>
+        public void UpdateAddress(int startAddress)
+        {
+            Address = startAddress + _index;
+            OnPropertyChanged(nameof(Address));
         }
         
         /// <summary>

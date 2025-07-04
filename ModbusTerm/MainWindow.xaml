@@ -423,12 +423,12 @@
             <TabItem Header="Master Mode" IsSelected="{Binding IsMasterMode, Mode=OneWay}" Visibility="{Binding IsMasterMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" MaxHeight="200" />
-                        <RowDefinition Height="*" MinHeight="250" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     
                     <!-- Request Builder -->
-                    <GroupBox Grid.Row="0" Header="Request Builder" Margin="5,5,5,10" Padding="8" Style="{StaticResource GroupBoxHeaderStyle}">
+                    <GroupBox Grid.Row="0" Header="Request Builder" Margin="5,0,5,5" Padding="5,0,5,5">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -474,37 +474,88 @@
                                      Margin="0,12,15,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
 
                             <!-- Dynamic write data inputs -->
-                            <ScrollViewer Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled"
-                                          Margin="5,12,5,5"
-                                          Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <ItemsControl x:Name="WriteDataItemsControl"
-                                          ItemsSource="{Binding WriteDataInputs}"
-                                          HorizontalAlignment="Left">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" MaxWidth="650" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="0,0,8,5" Padding="4" BorderThickness="1" BorderBrush="#CCCCCC" CornerRadius="3" Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}">
-                                                <Grid>
+                            <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6"
+                                  Margin="5,2,5,2"
+                                  MinHeight="170"
+                                  MaxHeight="170"
+                                  Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- DataGrid with ScrollViewer -->
+                                <Border Grid.Column="0" BorderThickness="1" BorderBrush="#CCCCCC">
+                                    <DataGrid x:Name="WriteDataItemsDataGrid" 
+                                               ItemsSource="{Binding WriteDataInputs}"
+                                               AutoGenerateColumns="False"
+                                               CanUserAddRows="False"
+                                               CanUserDeleteRows="False"
+                                               HeadersVisibility="Column"
+                                               GridLinesVisibility="All"
+                                               BorderThickness="0"
+                                               RowHeaderWidth="0"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Stretch"
+                                               MinWidth="450"
+                                               ScrollViewer.CanContentScroll="True" 
+                                               ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                               Height="170"
+                                               RowHeight="20"
+                                               Margin="0,0,0,0">
+                                    <!-- Add right-click context menu for row removal -->
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Remove Row" 
+                                                      Command="{Binding RemoveWriteDataItemCommand}" 
+                                                      CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=ContextMenu}, Path=PlacementTarget.SelectedItem}"
+                                                      Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                        <!-- Style for headers and rows -->
+                                        <DataGrid.Resources>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="Padding" Value="5,1,5,1" />
+                                                <Setter Property="Margin" Value="0" />
+                                                <Setter Property="Background" Value="#F0F0F0" />
+                                                <Setter Property="Height" Value="22" />
+                                            </Style>
+                                            <Style TargetType="{x:Type DataGridRow}">
+                                                <Setter Property="MinHeight" Value="20" />
+                                                <Setter Property="MaxHeight" Value="20" />
+                                            </Style>
+                                        </DataGrid.Resources>
+                                    <DataGrid.Columns>
+                                        <!-- Address Column (non-editable) -->
+                                        <DataGridTextColumn Header="Address" 
+                                                          Binding="{Binding Address}" 
+                                                          Width="65"
+                                                          IsReadOnly="True">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                                    <Setter Property="Padding" Value="5,0" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+
+                                        <!-- Value Column -->
+                                        <DataGridTemplateColumn Header="Value" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
                                                     <!-- Coil Write (Boolean) Template -->
-                                                    <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        
-                                                        <ToggleButton Grid.Column="0"
-                                                                       IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
-                                                                       Width="40" Height="24" Margin="0,0,4,0"
+                                                    <Grid>
+                                                        <ToggleButton Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                    IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
+                                                                    Width="40" Height="20" Margin="5,0"
                                                                     ToolTip="Toggle coil value (True/False)">
                                                             <ToggleButton.Content>
-                                                                <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="10" />
+                                                                <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="9" />
                                                             </ToggleButton.Content>
-                                                        
                                                             <ToggleButton.Style>
                                                                 <Style TargetType="ToggleButton">
                                                                     <Setter Property="Background" Value="#F44336" />
@@ -536,70 +587,107 @@
                                                                 </Style>
                                                             </ToggleButton.Style>
                                                         </ToggleButton>
+
+                                                        <!-- Register Value TextBox -->
+                                                        <TextBox Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                                                                Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                                Height="20" Width="Auto" Margin="5,0"
+                                                                VerticalContentAlignment="Center"
+                                                                FontSize="11"
+                                                                Padding="2,0"
+                                                                ToolTip="Enter register value" />
                                                     </Grid>
-                                                    
-                                                    <!-- Register Write Template -->
-                                                    <Grid Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        
-                                                        <TextBox Grid.Column="0" 
-                                                                 Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                                 Height="24" MinWidth="80" Width="Auto" Margin="0,0,4,0"
-                                                                 ToolTip="Enter register value" />
-                                                        
-                                                        <ComboBox Grid.Column="1"
-                                                                  ItemsSource="{Binding AvailableDataTypes}"
-                                                                  SelectedItem="{Binding SelectedDataType, Mode=TwoWay}"
-                                                                  Height="24" Margin="0,0,4,0"
-                                                                  ToolTip="Select data type">
-                                                            <ComboBox.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" FontSize="10" />
-                                                                </DataTemplate>
-                                                            </ComboBox.ItemTemplate>
-                                                        </ComboBox>
-                                                    </Grid>
-                                                </Grid>
-                                                
-                                                <!-- Removed duplicated Register Write Template -->
-                                                
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                            
-                            <!-- Add/Remove Value Buttons -->
-                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal"
-                                       Visibility="{Binding IsWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                       Margin="5,5,0,5">
-                                <Button Padding="8,4" 
-                                        Command="{Binding AddWriteDataItemCommand}" 
-                                        Content="Add Value" 
-                                        Style="{StaticResource StandardButtonStyle}"
-                                        Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <Button Padding="8,4" 
-                                        Command="{Binding RemoveLastWriteDataItemCommand}" 
-                                        Content="Remove Value" 
-                                        Margin="10,0,0,0"
-                                        Style="{StaticResource StandardButtonStyle}"
-                                        Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <Button Margin="15,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
-                                        Content="Send" Style="{StaticResource StandardButtonStyle}" />
-                                <!-- RTU Device Scan Buttons -->
-                                <StackPanel Orientation="Horizontal" Margin="15,0,0,0"
-                                          Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <Button Padding="8,4" Command="{Binding ScanForDevicesCommand}"
-                                            Content="Scan for devices" Style="{StaticResource StandardButtonStyle}" 
-                                            ToolTip="Scan for Modbus devices on RTU network" />
-                                    <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopDeviceScanCommand}"
-                                            Content="Stop scan" Style="{StaticResource StandardButtonStyle}" 
-                                            ToolTip="Stop the current device scan" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <!-- Name Column -->
+                                        <DataGridTextColumn Header="Name" 
+                                                          Binding="{Binding Name}" 
+                                                          Width="330">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                                    <Setter Property="Padding" Value="5,0" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                            <DataGridTextColumn.EditingElementStyle>
+                                                <Style TargetType="TextBox">
+                                                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                                                    <Setter Property="Padding" Value="5,0" />
+                                                </Style>
+                                            </DataGridTextColumn.EditingElementStyle>
+                                        </DataGridTextColumn>
+
+                                        <!-- Data Type Column -->
+                                        <DataGridTemplateColumn Header="Data Type" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <ComboBox ItemsSource="{Binding AvailableDataTypes}"
+                                                            SelectedItem="{Binding SelectedDataType, Mode=TwoWay}"
+                                                            Height="20" Margin="5,0"
+                                                            VerticalContentAlignment="Center"
+                                                            FontSize="11"
+                                                            Padding="2,0"
+                                                            ToolTip="Select data type">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" FontSize="10" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <!-- Remove Button Column -->
+
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                </Border>
+                                
+                                <!-- Action Buttons (moved to right side) -->
+                                <StackPanel Grid.Column="1" Orientation="Vertical" Margin="10,0,0,0" VerticalAlignment="Top">
+                                    <!-- Add Row Button -->
+                                    <Button Padding="8,4" 
+                                            Command="{Binding AddWriteDataItemCommand}" 
+                                            Content="Add Row" 
+                                            Style="{StaticResource StandardButtonStyle}"
+                                            Margin="0,0,0,10"
+                                            Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    
+                                    <!-- Remove Row Button -->
+                                    <Button Padding="8,4" 
+                                            Command="{Binding RemoveLastWriteDataItemCommand}" 
+                                            Content="Remove Row" 
+                                            Style="{StaticResource StandardButtonStyle}"
+                                            Margin="0,0,0,10"
+                                            Visibility="{Binding IsMultipleWriteFunction, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    
+                                    <!-- Send Button -->
+                                    <Button Padding="8,4" 
+                                            Command="{Binding SendRequestCommand}"
+                                            Content="Send" 
+                                            Style="{StaticResource StandardButtonStyle}" 
+                                            Margin="0,0,0,10" />
+                                    
+                                    <!-- RTU Device Scan Buttons -->
+                                    <StackPanel Orientation="Vertical" 
+                                              Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Button Padding="8,4" 
+                                                Command="{Binding ScanForDevicesCommand}"
+                                                Content="Scan for devices" 
+                                                Style="{StaticResource StandardButtonStyle}" 
+                                                Margin="0,0,0,10"
+                                                ToolTip="Scan for Modbus devices on RTU network" />
+                                        <Button Padding="8,4" 
+                                                Command="{Binding StopDeviceScanCommand}"
+                                                Content="Stop scan" 
+                                                Style="{StaticResource StandardButtonStyle}" 
+                                                ToolTip="Stop the current device scan" />
+                                    </StackPanel>
                                 </StackPanel>
-                            </StackPanel>
+                            </Grid>
                             
                             <!-- Data Type for Read Functions -->
                             <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,12,10,5"
@@ -644,34 +732,33 @@
                             </StackPanel>
                         </Grid>
                     </GroupBox>
-                    
+
                     <!-- Response Display -->
-                    <GroupBox Grid.Row="1" Header="Response" Margin="5" Padding="8" Style="{StaticResource GroupBoxHeaderStyle}">
+                    <GroupBox Grid.Row="1" Header="Response" Margin="5,0,5,5" Padding="5,0,5,5" Style="{StaticResource GroupBoxHeaderStyle}">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             
-                            <!-- Response metadata -->
-                            <StackPanel Grid.Row="0" Orientation="Vertical" Margin="5,5,5,15">
-                                <TextBlock Margin="0,0,0,8">
-                                    <Run Text="Response Status: " FontWeight="Bold"/>
-                                    <Run Text="{Binding ResponseStatus, Mode=OneWay}"/>
-                                </TextBlock>
-                                <TextBlock Margin="0,0,0,5">
-                                    <Run Text="Response Time: " FontWeight="Bold"/>
-                                    <Run Text="{Binding ResponseTime, Mode=OneWay}"/>
-                                </TextBlock>
-                            </StackPanel>
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Response Status:" Margin="0,0,5,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding ResponseStatus}" />
+                                <TextBlock Grid.Column="2" Text="Response Time:" Margin="10,0,5,0" />
+                                <TextBlock Grid.Column="3" Text="{Binding ResponseTime}" />
+                            </Grid>
                             
-                            <!-- Response data -->
                             <Grid Grid.Row="1">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 
-                                <!-- Use DockPanel to ensure items don't overlap -->
                                 <DockPanel LastChildFill="True">
                                     <!-- Use a ContentControl to ensure only one item is displayed at a time -->
                                     <ContentControl>
@@ -685,68 +772,7 @@
                                                                 <DataGrid AutoGenerateColumns="False" IsReadOnly="True" 
                                                                           ItemsSource="{Binding ResponseItems}"
                                                                           Style="{StaticResource ModernDataGridStyle}"
-                                                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                                                    <!-- No DataGrid.Resources needed - using direct visibility binding -->
-                                                                    <DataGrid.Columns>
-                                                                        <!-- Address/Slave ID Column -->
-                                                                        <DataGridTextColumn Width="100" Binding="{Binding Address}">
-                                                                            <DataGridTextColumn.Header>
-                                                                                <TextBlock>
-                                                                                    <TextBlock.Style>
-                                                                                        <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Text" Value="Address" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding DataContext.IsInScanMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                                                                                                    <Setter Property="Text" Value="Slave ID" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </TextBlock.Style>
-                                                                                </TextBlock>
-                                                                            </DataGridTextColumn.Header>
-                                                                        </DataGridTextColumn>
-                                                                        
-                                                                        <!-- Value/Response time Column -->
-                                                                        <DataGridTextColumn Width="*" Binding="{Binding Value}">
-                                                                            <DataGridTextColumn.Header>
-                                                                                <TextBlock>
-                                                                                    <TextBlock.Style>
-                                                                                        <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Text" Value="Value" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding DataContext.IsInScanMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                                                                                                    <Setter Property="Text" Value="Response time" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </TextBlock.Style>
-                                                                                </TextBlock>
-                                                                            </DataGridTextColumn.Header>
-                                                                        </DataGridTextColumn>
-                                                                        
-                                                                        <!-- Hex Column (hidden in scan mode) -->
-                                                                        <DataGridTextColumn Header="Hex" Width="150" Binding="{Binding HexValue}">
-                                                                            <DataGridTextColumn.Visibility>
-                                                                                <Binding Path="DataContext.IsInScanMode" RelativeSource="{RelativeSource AncestorType=DataGrid}">
-                                                                                    <Binding.Converter>
-                                                                                        <converters:InverseBooleanToVisibilityConverter />
-                                                                                    </Binding.Converter>
-                                                                                </Binding>
-                                                                            </DataGridTextColumn.Visibility>
-                                                                        </DataGridTextColumn>
-                                                                        
-                                                                        <!-- Binary Column (hidden in scan mode) -->
-                                                                        <DataGridTextColumn Header="Binary" Width="200" Binding="{Binding BinaryValue}">
-                                                                            <DataGridTextColumn.Visibility>
-                                                                                <Binding Path="DataContext.IsInScanMode" RelativeSource="{RelativeSource AncestorType=DataGrid}">
-                                                                                    <Binding.Converter>
-                                                                                        <converters:InverseBooleanToVisibilityConverter />
-                                                                                    </Binding.Converter>
-                                                                                </Binding>
-                                                                            </DataGridTextColumn.Visibility>
-                                                                        </DataGridTextColumn>
-                                                                    </DataGrid.Columns>
-                                                                </DataGrid>
+                                                                          ScrollViewer.VerticalScrollBarVisibility="Auto" />
                                                             </Setter.Value>
                                                         </Setter>
                                                     </DataTrigger>
@@ -754,8 +780,7 @@
                                                         <Setter Property="Content">
                                                             <Setter.Value>
                                                                 <!-- No response message -->
-                                                                <TextBlock Text="No response received." Margin="10,10,10,10"
-                                                                           HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                                                <TextBlock Text="No response received." Margin="0,10,0,0" />
                                                             </Setter.Value>
                                                         </Setter>
                                                     </DataTrigger>
@@ -768,23 +793,23 @@
                         </Grid>
                     </GroupBox>
                 </Grid>
-            </TabItem>
-            
-            <!-- Slave Mode Tab (visible when in slave mode) -->
-            <TabItem Header="Slave Mode" IsSelected="{Binding IsSlaveMode, Mode=OneWay}" Visibility="{Binding IsSlaveMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
-                <Grid>
-                    <!-- Register Tables in Tabs -->
-                    <TabControl Margin="5" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
-                        <!-- Holding Registers Tab -->
-                        <TabItem Header="Holding Registers">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                
-                                <!-- Register Data Grid -->
-                                <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
+                </TabItem>
+                
+                <!-- Slave Mode Tab (visible when in slave mode) -->
+                <TabItem Header="Slave Mode" IsSelected="{Binding IsSlaveMode, Mode=OneWay}" Visibility="{Binding IsSlaveMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
+                    <Grid>
+                        <!-- Register Tables in Tabs -->
+                        <TabControl Margin="5" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                            <!-- Holding Registers Tab -->
+                            <TabItem Header="Holding Registers">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    
+                                    <!-- Register Data Grid -->
+                                    <DataGrid Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="False"
                                            Name="RegistersGrid"
                                            ItemsSource="{Binding RegisterDefinitions}"
                                            SelectedItem="{Binding SelectedRegister, Mode=TwoWay}"
