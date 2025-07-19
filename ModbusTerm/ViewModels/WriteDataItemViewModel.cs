@@ -24,7 +24,17 @@ namespace ModbusTerm.ViewModels
         public string Value
         {
             get => _value;
-            set => SetProperty(ref _value, value);
+            set 
+            {
+                if (SetProperty(ref _value, value))
+                {
+                    // For ASCII strings, the register count may change when value changes
+                    if (_selectedDataType == ModbusDataType.AsciiString)
+                    {
+                        OnDataTypeChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                }
+            }
         }
         
         /// <summary>
@@ -131,22 +141,22 @@ namespace ModbusTerm.ViewModels
             {
                 _booleanValue = false;
                 _value = "False";
-                _selectedDataType = ModbusDataType.Binary;
+                SelectedDataType = ModbusDataType.Binary;
             }
             else
             {
                 _value = "0";
-                _selectedDataType = ModbusDataType.UInt16;
+                SelectedDataType = ModbusDataType.UInt16;
             }
         }
         
         /// <summary>
-        /// Updates the address based on a new start address
+        /// Updates the address to the specified value
         /// </summary>
-        /// <param name="startAddress">The new start address</param>
-        public void UpdateAddress(int startAddress)
+        /// <param name="address">The new address value</param>
+        public void UpdateAddress(int address)
         {
-            Address = startAddress + _index;
+            Address = address;
             OnPropertyChanged(nameof(Address));
         }
         
@@ -176,7 +186,7 @@ namespace ModbusTerm.ViewModels
             }
             
             // If current selected data type is not valid anymore, reset to a valid one
-            if (!AvailableDataTypes.Contains(_selectedDataType))
+            if (!AvailableDataTypes.Contains(SelectedDataType))
             {
                 SelectedDataType = AvailableDataTypes[0];
             }
@@ -195,9 +205,22 @@ namespace ModbusTerm.ViewModels
                 ModbusDataType.Int32 => 2,
                 ModbusDataType.Float32 => 2,
                 ModbusDataType.Float64 => 4,
-                ModbusDataType.AsciiString => 1, // This is per register, might need special handling for strings
+                ModbusDataType.AsciiString => GetAsciiStringRegisterCount(),
                 _ => 1
             };
+        }
+        
+        /// <summary>
+        /// Calculates the number of registers needed for an ASCII string
+        /// Each register holds 2 ASCII characters
+        /// </summary>
+        private int GetAsciiStringRegisterCount()
+        {
+            if (string.IsNullOrEmpty(_value))
+                return 1; // Minimum 1 register even for empty strings
+                
+            // Each register holds 2 ASCII characters
+            return (int)Math.Ceiling(_value.Length / 2.0);
         }
     }
 }

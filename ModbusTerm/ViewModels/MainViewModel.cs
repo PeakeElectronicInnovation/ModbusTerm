@@ -1863,6 +1863,8 @@ namespace ModbusTerm.ViewModels
             newItem.OnDataTypeChanged += WriteDataItem_DataTypeChanged;
             _writeDataInputs.Add(newItem);
 
+            // Update all addresses after adding the new item
+            UpdateWriteDataItemAddresses();
             CalculateWriteQuantity();
 
             // Force command availability to update
@@ -1879,6 +1881,8 @@ namespace ModbusTerm.ViewModels
                 item.OnDataTypeChanged -= WriteDataItem_DataTypeChanged;
                 _writeDataInputs.Remove(item);
 
+                // Update all addresses after removing the item
+                UpdateWriteDataItemAddresses();
                 CalculateWriteQuantity();
 
                 // Force command availability to update
@@ -1897,6 +1901,8 @@ namespace ModbusTerm.ViewModels
                 lastItem.OnDataTypeChanged -= WriteDataItem_DataTypeChanged;
                 _writeDataInputs.Remove(lastItem);
 
+                // Update all addresses after removing the item
+                UpdateWriteDataItemAddresses();
                 CalculateWriteQuantity();
 
                 // Force command availability to update
@@ -1917,6 +1923,8 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void WriteDataItem_DataTypeChanged(object? sender, EventArgs e)
         {
+            // Update addresses since data type changes can affect register counts
+            UpdateWriteDataItemAddresses();
             CalculateWriteQuantity();
         }
         
@@ -2663,8 +2671,9 @@ namespace ModbusTerm.ViewModels
                         CurrentRequest.Quantity = 1;
                     }
 
-                    // Update available data types and calculate quantity
+                    // Update available data types, addresses, and calculate quantity
                     UpdateAvailableWriteDataTypes();
+                    UpdateWriteDataItemAddresses();
                     CalculateWriteQuantity();
                 }
 
@@ -3529,13 +3538,16 @@ namespace ModbusTerm.ViewModels
                 item.Index = i;
                 item.UpdateAddress(startAddress + currentOffset);
                 
-                if (i < _writeDataInputs.Count - 1 && !CurrentRequest.IsCoilFunction)
+                // Calculate offset for next item based on current item's register count
+                if (CurrentRequest.IsCoilFunction)
                 {
-                    currentOffset += item.GetRegisterCount();
-                }
-                else if (i < _writeDataInputs.Count - 1)
-                {
+                    // For coils, each item takes 1 address
                     currentOffset++;
+                }
+                else
+                {
+                    // For registers, offset by the number of registers this item consumes
+                    currentOffset += item.GetRegisterCount();
                 }
             }
         }

@@ -44,8 +44,34 @@ namespace ModbusTerm.Helpers
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // This method is not needed for this converter
-            throw new NotImplementedException();
+            if (value is string displayText)
+            {
+                switch (displayText)
+                {
+                    case "Uint16":
+                        return ModbusDataType.UInt16;
+                    case "Int16":
+                        return ModbusDataType.Int16;
+                    case "Uint32":
+                        return ModbusDataType.UInt32;
+                    case "Int32":
+                        return ModbusDataType.Int32;
+                    case "Float32":
+                        return ModbusDataType.Float32;
+                    case "Float64":
+                        return ModbusDataType.Float64;
+                    case "ASCII":
+                        return ModbusDataType.AsciiString;
+                    case "Hex":
+                        return ModbusDataType.Hex;
+                    case "Binary":
+                        return ModbusDataType.Binary;
+                    default:
+                        return ModbusDataType.UInt16; // Default fallback
+                }
+            }
+            
+            return ModbusDataType.UInt16; // Default fallback
         }
     }
 }
