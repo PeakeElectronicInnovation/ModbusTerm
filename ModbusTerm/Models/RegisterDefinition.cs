@@ -383,7 +383,8 @@ namespace ModbusTerm.Models
             Value = (ushort)(value & 0xFFFF); // Low word in Value
             AdditionalValues[0] = (ushort)(value >> 16); // High word in AdditionalValues[0]
             
-            // Update the formatted value
+            // Notify about Value changes to trigger slave service update
+            NotifyPropertyChanged(nameof(Value));
             NotifyPropertyChanged(nameof(FormattedValue));
         }
 
@@ -424,7 +425,8 @@ namespace ModbusTerm.Models
             Value = (ushort)((bytes[1] << 8) | bytes[0]);  // Low word
             AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);  // High word
             
-            // Update the formatted value
+            // Notify about Value changes to trigger slave service update
+            NotifyPropertyChanged(nameof(Value));
             NotifyPropertyChanged(nameof(FormattedValue));
         }
 
@@ -432,15 +434,19 @@ namespace ModbusTerm.Models
         {
             if (AdditionalValues.Count < 3) return 0;
             byte[] bytes = new byte[8];
-            bytes[0] = (byte)(AdditionalValues[2] & 0xFF);
-            bytes[1] = (byte)(AdditionalValues[2] >> 8);
-            bytes[2] = (byte)(AdditionalValues[1] & 0xFF);
-            bytes[3] = (byte)(AdditionalValues[1] >> 8);
-            bytes[4] = (byte)(AdditionalValues[0] & 0xFF);
-            bytes[5] = (byte)(AdditionalValues[0] >> 8);
-            bytes[6] = (byte)(Value & 0xFF);
-            bytes[7] = (byte)(Value >> 8);
-            return BitConverter.ToDouble(bytes, 0);
+            // Match Float32 pattern: each register stores bytes in big-endian, registers in little-endian order
+            bytes[0] = (byte)(Value & 0xFF);        // Low byte of word 0
+            bytes[1] = (byte)(Value >> 8);          // High byte of word 0
+            bytes[2] = (byte)(AdditionalValues[0] & 0xFF);  // Low byte of word 1
+            bytes[3] = (byte)(AdditionalValues[0] >> 8);    // High byte of word 1
+            bytes[4] = (byte)(AdditionalValues[1] & 0xFF);  // Low byte of word 2
+            bytes[5] = (byte)(AdditionalValues[1] >> 8);    // High byte of word 2
+            bytes[6] = (byte)(AdditionalValues[2] & 0xFF);  // Low byte of word 3
+            bytes[7] = (byte)(AdditionalValues[2] >> 8);    // High byte of word 3
+            
+            var result = BitConverter.ToDouble(bytes, 0);
+            System.Diagnostics.Debug.WriteLine($"GetFloat64Value: Value=0x{Value:X4}, Add[0]=0x{AdditionalValues[0]:X4}, Add[1]=0x{AdditionalValues[1]:X4}, Add[2]=0x{AdditionalValues[2]:X4} => {result}");
+            return result;
         }
         
         private void SetFloat64Value(double value)
@@ -454,13 +460,16 @@ namespace ModbusTerm.Models
             // Convert double to bytes
             byte[] bytes = BitConverter.GetBytes(value);
             
-            // Set the values
-            AdditionalValues[2] = (ushort)((bytes[1] << 8) | bytes[0]);
-            AdditionalValues[1] = (ushort)((bytes[3] << 8) | bytes[2]);
-            AdditionalValues[0] = (ushort)((bytes[5] << 8) | bytes[4]);
-            Value = (ushort)((bytes[7] << 8) | bytes[6]);
+            // Match Float32 pattern: each register stores bytes in big-endian, registers in little-endian order
+            Value = (ushort)((bytes[1] << 8) | bytes[0]);                    // Word 0: bytes 0-1 with byte swap
+            AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);      // Word 1: bytes 2-3 with byte swap
+            AdditionalValues[1] = (ushort)((bytes[5] << 8) | bytes[4]);      // Word 2: bytes 4-5 with byte swap
+            AdditionalValues[2] = (ushort)((bytes[7] << 8) | bytes[6]);      // Word 3: bytes 6-7 with byte swap
             
-            // Update the formatted value
+            System.Diagnostics.Debug.WriteLine($"SetFloat64Value: {value} => Value=0x{Value:X4}, Add[0]=0x{AdditionalValues[0]:X4}, Add[1]=0x{AdditionalValues[1]:X4}, Add[2]=0x{AdditionalValues[2]:X4}");
+            
+            // Notify about Value changes to trigger slave service update
+            NotifyPropertyChanged(nameof(Value));
             NotifyPropertyChanged(nameof(FormattedValue));
         }
 
@@ -502,7 +511,7 @@ namespace ModbusTerm.Models
                 var result = new string(chars.Where(c => c != '\0').ToArray());
                 return result;
             }
-            catch (Exception ex)
+            catch
             {
                 return "";
             }

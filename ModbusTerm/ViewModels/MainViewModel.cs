@@ -939,21 +939,14 @@ namespace ModbusTerm.ViewModels
                 // Second pass: Handle multi-register data types (like ASCII strings)
                 var processedRegisters = new HashSet<ushort>();
                 
-                // Debug: Log what registers we found
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                    $"DEBUG: Found {updatedRegisters.Count} updated registers: {string.Join(", ", updatedRegisters.Select(r => $"Addr:{r.Address} Type:{r.DataType} Count:{r.RegisterCount}"))}"));
-                
                 foreach (var register in updatedRegisters)
                 {
                     if (processedRegisters.Contains(register.Address)) continue;
                     
-                    // Check if this register uses multiple registers (like ASCII strings)
-                    if (register.DataType == ModbusDataType.AsciiString && register.RegisterCount > 1)
+                    // Check if this register uses multiple registers (like ASCII strings or Float64)
+                    if ((register.DataType == ModbusDataType.AsciiString || register.DataType == ModbusDataType.Float64) && register.RegisterCount > 1)
                     {
-                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                            $"DEBUG: Processing ASCII string at address {register.Address}, RegisterCount: {register.RegisterCount}"));
-                        
-                        // Collect values from all registers that belong to this ASCII string
+                        // Collect values from all registers that belong to this multi-register data type
                         var allValues = new List<ushort>();
                         
                         for (int regIndex = 0; regIndex < register.RegisterCount; regIndex++)
@@ -966,19 +959,19 @@ namespace ModbusTerm.ViewModels
                             {
                                 allValues.Add(e.Values[valueIndex]);
                                 processedRegisters.Add(targetAddress);
-                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                    $"DEBUG: Added value 0x{e.Values[valueIndex]:X4} from address {targetAddress}"));
                             }
                             else
                             {
-                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                    $"DEBUG: Could not find value for address {targetAddress} (valueIndex: {valueIndex}, e.Values.Length: {e.Values.Length})"));
+                                // Register not found in this write operation
                             }
                         }
                         
                         // Update the register with all values
                         if (allValues.Count > 0)
                         {
+                            // Update UI with the changed value, but don't trigger another write back
+                            register.SuppressNotifications = true;
+                            register.Value = allValues[0];
                             OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
                                 $"DEBUG: Before update - Value=0x{register.Value:X4}, AdditionalValues.Count={register.AdditionalValues.Count}, EditableValue='{register.EditableValue}'"));
                             
