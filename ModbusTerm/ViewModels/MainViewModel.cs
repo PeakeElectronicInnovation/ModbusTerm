@@ -943,8 +943,10 @@ namespace ModbusTerm.ViewModels
                 {
                     if (processedRegisters.Contains(register.Address)) continue;
                     
-                    // Check if this register uses multiple registers (like ASCII strings or Float64)
-                    if ((register.DataType == ModbusDataType.AsciiString || register.DataType == ModbusDataType.Float64) && register.RegisterCount > 1)
+                    // Check if this register uses multiple registers (like ASCII strings, Float64, or 32-bit types)
+                    if ((register.DataType == ModbusDataType.AsciiString || register.DataType == ModbusDataType.Float64 || 
+                         register.DataType == ModbusDataType.UInt32 || register.DataType == ModbusDataType.Int32 || 
+                         register.DataType == ModbusDataType.Float32) && register.RegisterCount > 1)
                     {
                         // Collect values from all registers that belong to this multi-register data type
                         var allValues = new List<ushort>();
@@ -972,46 +974,26 @@ namespace ModbusTerm.ViewModels
                             // Update UI with the changed value, but don't trigger another write back
                             register.SuppressNotifications = true;
                             register.Value = allValues[0];
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"DEBUG: Before update - Value=0x{register.Value:X4}, AdditionalValues.Count={register.AdditionalValues.Count}, EditableValue='{register.EditableValue}'"));
                             
-
                             // Set additional values first (without suppressing notifications)
                             register.AdditionalValues.Clear();
                             for (int i = 1; i < allValues.Count; i++)
                             {
                                 register.AdditionalValues.Add(allValues[i]);
-                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                    $"DEBUG: Added AdditionalValues[{i-1}] = 0x{allValues[i]:X4}"));
                             }
                             
-
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"DEBUG: After setting AdditionalValues - Count={register.AdditionalValues.Count}, FormattedValue='{register.FormattedValue}'"));
-                            
-
                             // Set the primary value (first register)
                             register.Value = allValues[0];
                             
-
                             // CRITICAL FIX: Manually update EditableValue since Value might not have changed
                             // The Value setter only updates EditableValue if the value actually changes
                             // But in our case, the first pass already set the Value, so we need to force the update
                             var currentFormattedValue = register.FormattedValue;
                             register.GetType().GetField("_editableValue", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.SetValue(register, currentFormattedValue);
                             
-
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"DEBUG: After manual EditableValue update - Value=0x{register.Value:X4}, EditableValue='{register.EditableValue}', FormattedValue='{register.FormattedValue}'"));
-                            
-
                             // Force property change notifications to refresh the UI
                             register.ForcePropertyChanged(nameof(RegisterDefinition.FormattedValue));
                             register.ForcePropertyChanged(nameof(RegisterDefinition.EditableValue));
-                            
-
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
-                                $"DEBUG: Final state - EditableValue='{register.EditableValue}', FormattedValue='{register.FormattedValue}'"));
                         }
                     }
                     else

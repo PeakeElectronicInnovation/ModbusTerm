@@ -54,12 +54,6 @@ namespace ModbusTerm.Models
                     var oldValue = _value;
                     _value = value;
                     
-                    // Debug output for ASCII strings
-                    if (DataType == ModbusDataType.AsciiString)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"DEBUG Value setter START: Address={Address}, OldValue=0x{oldValue:X4}, NewValue=0x{_value:X4}, _editingInProgress={_editingInProgress}, AdditionalValues.Count={AdditionalValues.Count}");
-                    }
-                    
                     // Only update EditableValue if this wasn't triggered by EditableValue setter
                     // This keeps the displayed value in sync when changes come from elsewhere
                     // but prevents disrupting user input in the EditableValue field
@@ -69,34 +63,14 @@ namespace ModbusTerm.Models
                         var oldEditableValue = _editableValue;
                         _editableValue = newFormattedValue;
                         
-                        // Debug output
-                        if (DataType == ModbusDataType.AsciiString)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"DEBUG Value setter UPDATE: OldEditableValue='{oldEditableValue}', NewFormattedValue='{newFormattedValue}', NewEditableValue='{_editableValue}'");
-                        }
-                        
                         // Always notify for EditableValue regardless of suppression
                         // This is critical for external writes to show immediately in UI
                         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditableValue)));
-                    }
-                    else
-                    {
-                        if (DataType == ModbusDataType.AsciiString)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"DEBUG Value setter SKIPPED: _editingInProgress=true, EditableValue remains '{_editableValue}'");
-                        }
                     }
                     
                     // Notify value change
                     NotifyPropertyChanged();
                     NotifyPropertyChanged(nameof(FormattedValue)); 
-                }
-                else
-                {
-                    if (DataType == ModbusDataType.AsciiString)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"DEBUG Value setter NO CHANGE: Value already 0x{_value:X4}");
-                    }
                 }
             }
         }
