@@ -28,6 +28,18 @@ namespace ModbusTerm.ViewModels
             {
                 if (SetProperty(ref _value, value))
                 {
+                    // For coil writes, sync the boolean value
+                    if (_isCoilWrite)
+                    {
+                        bool newBoolValue = false;
+                        if (bool.TryParse(value, out newBoolValue) || 
+                            (int.TryParse(value, out int intValue) && (newBoolValue = intValue != 0)))
+                        {
+                            _booleanValue = newBoolValue;
+                            OnPropertyChanged(nameof(BooleanValue));
+                        }
+                    }
+                    
                     // For ASCII strings, the register count may change when value changes
                     if (_selectedDataType == ModbusDataType.AsciiString)
                     {

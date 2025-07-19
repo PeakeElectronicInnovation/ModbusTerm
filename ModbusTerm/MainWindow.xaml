@@ -549,44 +549,14 @@
                                                 <DataTemplate>
                                                     <!-- Coil Write (Boolean) Template -->
                                                     <Grid>
-                                                        <ToggleButton Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                    IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
-                                                                    Width="40" Height="20" Margin="5,0"
-                                                                    ToolTip="Toggle coil value (True/False)">
-                                                            <ToggleButton.Content>
-                                                                <TextBlock Text="{Binding BooleanValue}" FontWeight="Bold" FontSize="9" />
-                                                            </ToggleButton.Content>
-                                                            <ToggleButton.Style>
-                                                                <Style TargetType="ToggleButton">
-                                                                    <Setter Property="Background" Value="#F44336" />
-                                                                    <Setter Property="Foreground" Value="White" />
-                                                                    <Setter Property="BorderThickness" Value="0" />
-                                                                    <Setter Property="Template">
-                                                                        <Setter.Value>
-                                                                            <ControlTemplate TargetType="ToggleButton">
-                                                                                <Border Background="{TemplateBinding Background}" 
-                                                                                        CornerRadius="13" 
-                                                                                        BorderThickness="{TemplateBinding BorderThickness}">
-                                                                                    <ContentPresenter HorizontalAlignment="Center" 
-                                                                                                    VerticalAlignment="Center" 
-                                                                                                    Content="{TemplateBinding Content}"
-                                                                                                    TextElement.FontWeight="Bold"
-                                                                                                    TextElement.FontSize="10" />
-                                                                                </Border>
-                                                                                <ControlTemplate.Triggers>
-                                                                                    <Trigger Property="IsChecked" Value="True">
-                                                                                        <Setter Property="Background" Value="#4CAF50" />
-                                                                                    </Trigger>
-                                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                                        <Setter Property="Opacity" Value="0.8" />
-                                                                                    </Trigger>
-                                                                                </ControlTemplate.Triggers>
-                                                                            </ControlTemplate>
-                                                                        </Setter.Value>
-                                                                    </Setter>
-                                                                </Style>
-                                                            </ToggleButton.Style>
-                                                        </ToggleButton>
+                                                        <CheckBox Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                  IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="5,0"
+                                                                  ToolTip="Toggle coil value (True/False)"
+                                                                  Checked="CheckBox_Checked"
+                                                                  Unchecked="CheckBox_Unchecked" />
 
                                                         <!-- Register Value TextBox -->
                                                         <TextBox Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}"

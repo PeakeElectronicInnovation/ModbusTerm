@@ -377,4 +377,26 @@ public partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine("_viewModel.ConnectionParameters is not RtuConnectionParameters");
         }
     }
+    
+    /// <summary>
+    /// Event handler for CheckBox Checked event - manually updates BooleanValue
+    /// </summary>
+    private void CheckBox_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
+        {
+            item.BooleanValue = true;
+        }
+    }
+    
+    /// <summary>
+    /// Event handler for CheckBox Unchecked event - manually updates BooleanValue
+    /// </summary>
+    private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
+        {
+            item.BooleanValue = false;
+        }
+    }
 }

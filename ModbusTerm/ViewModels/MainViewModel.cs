@@ -1365,23 +1365,8 @@ namespace ModbusTerm.ViewModels
                         {
                             // For coil operations, only the first input is used
                             var firstItem = WriteDataInputs[0];
-                            if (!string.IsNullOrWhiteSpace(firstItem.Value))
-                            {
-                                string val = firstItem.Value;
-                                bool boolValue = false;
-                                int intValue = 0;
-                                bool isValid = bool.TryParse(val, out boolValue) ||
-                                             int.TryParse(val, out intValue);
-
-                                if (isValid)
-                                {
-                                    singleCoilParams.Value = boolValue || intValue != 0;
-                                }
-                                else
-                                {
-                                    throw new FormatException("Value must be true/false or 0/1 for coil operations");
-                                }
-                            }
+                            // Use the BooleanValue property directly for consistency
+                            singleCoilParams.Value = firstItem.BooleanValue;
                         }
                         else if (CurrentRequest is WriteSingleRegisterParameters singleRegParams)
                         {
@@ -1398,20 +1383,11 @@ namespace ModbusTerm.ViewModels
                             // Each input field represents one coil
                             multiCoilParams.Values.Clear();
 
-                            foreach (var item in WriteDataInputs.Where(v => !string.IsNullOrWhiteSpace(v.Value)))
+                            foreach (var item in WriteDataInputs)
                             {
-                                if (bool.TryParse(item.Value, out bool boolValue))
-                                {
-                                    multiCoilParams.Values.Add(boolValue);
-                                }
-                                else if (int.TryParse(item.Value, out int intValue))
-                                {
-                                    multiCoilParams.Values.Add(intValue != 0);
-                                }
-                                else
-                                {
-                                    throw new FormatException($"Invalid boolean value: {item.Value}");
-                                }
+                                // For coil writes, use the BooleanValue property directly
+                                CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Debug: Coil {item.Address} - BooleanValue: {item.BooleanValue}, StringValue: '{item.Value}'"));
+                                multiCoilParams.Values.Add(item.BooleanValue);
                             }
                         }
                         else if (CurrentRequest is WriteMultipleRegistersParameters multiRegParams)
