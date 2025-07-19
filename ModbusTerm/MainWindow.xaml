@@ -772,7 +772,39 @@
                                                                 <DataGrid AutoGenerateColumns="False" IsReadOnly="True" 
                                                                           ItemsSource="{Binding ResponseItems}"
                                                                           Style="{StaticResource ModernDataGridStyle}"
-                                                                          ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                                                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                                                    <DataGrid.Columns>
+                                                                        <!-- Address Column -->
+                                                                        <DataGridTextColumn Header="Address" 
+                                                                                          Binding="{Binding Address}" 
+                                                                                          Width="80"
+                                                                                          IsReadOnly="True" />
+                                                                        
+                                                                        <!-- Value Column -->
+                                                                        <DataGridTextColumn Header="Value" 
+                                                                                          Binding="{Binding Value}" 
+                                                                                          Width="120"
+                                                                                          IsReadOnly="True" />
+                                                                        
+                                                                        <!-- Data Type Column -->
+                                                                        <DataGridTextColumn Header="Data Type" 
+                                                                                          Binding="{Binding DataType}" 
+                                                                                          Width="100"
+                                                                                          IsReadOnly="True" />
+                                                                        
+                                                                        <!-- Hex Column -->
+                                                                        <DataGridTextColumn Header="Hex" 
+                                                                                          Binding="{Binding HexValue}" 
+                                                                                          Width="120"
+                                                                                          IsReadOnly="True" />
+                                                                        
+                                                                        <!-- Binary Column -->
+                                                                        <DataGridTextColumn Header="Binary" 
+                                                                                          Binding="{Binding BinaryValue}" 
+                                                                                          Width="*"
+                                                                                          IsReadOnly="True" />
+                                                                    </DataGrid.Columns>
+                                                                </DataGrid>
                                                             </Setter.Value>
                                                         </Setter>
                                                     </DataTrigger>
