@@ -85,6 +85,9 @@ namespace ModbusTerm.ViewModels
         private ICommand _importDiscreteInputsCommand;
         private ICommand _exportDiscreteInputsCommand;
         private bool _showDiscreteInputs = true;
+        
+        // Flag to prevent infinite recursion during address updates
+        private bool _isUpdatingAddresses = false;
 
         /// <summary>
         /// Command to connect to a Modbus device
@@ -910,7 +913,8 @@ namespace ModbusTerm.ViewModels
             // Ensure we update the UI on the UI thread
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                // Update all registers that were changed
+                // First pass: Update all individual register values
+                var updatedRegisters = new List<RegisterDefinition>();
                 for (int i = 0; i < e.Values.Length; i++)
                 {
                     // Calculate the actual address for this index
@@ -928,6 +932,98 @@ namespace ModbusTerm.ViewModels
                         // Force a UI refresh by notifying change of a UI-bound property
                         register.IsRecentlyModified = true;
                         _highlightedRegisters.Add(register);
+                        updatedRegisters.Add(register);
+                    }
+                }
+                
+                // Second pass: Handle multi-register data types (like ASCII strings)
+                var processedRegisters = new HashSet<ushort>();
+                
+                // Debug: Log what registers we found
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                    $"DEBUG: Found {updatedRegisters.Count} updated registers: {string.Join(", ", updatedRegisters.Select(r => $"Addr:{r.Address} Type:{r.DataType} Count:{r.RegisterCount}"))}"));
+                
+                foreach (var register in updatedRegisters)
+                {
+                    if (processedRegisters.Contains(register.Address)) continue;
+                    
+                    // Check if this register uses multiple registers (like ASCII strings)
+                    if (register.DataType == ModbusDataType.AsciiString && register.RegisterCount > 1)
+                    {
+                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                            $"DEBUG: Processing ASCII string at address {register.Address}, RegisterCount: {register.RegisterCount}"));
+                        
+                        // Collect values from all registers that belong to this ASCII string
+                        var allValues = new List<ushort>();
+                        
+                        for (int regIndex = 0; regIndex < register.RegisterCount; regIndex++)
+                        {
+                            ushort targetAddress = (ushort)(register.Address + regIndex);
+                            
+                            // Find the value for this address in the received data
+                            int valueIndex = targetAddress - e.StartAddress;
+                            if (valueIndex >= 0 && valueIndex < e.Values.Length)
+                            {
+                                allValues.Add(e.Values[valueIndex]);
+                                processedRegisters.Add(targetAddress);
+                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                    $"DEBUG: Added value 0x{e.Values[valueIndex]:X4} from address {targetAddress}"));
+                            }
+                            else
+                            {
+                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                    $"DEBUG: Could not find value for address {targetAddress} (valueIndex: {valueIndex}, e.Values.Length: {e.Values.Length})"));
+                            }
+                        }
+                        
+                        // Update the register with all values
+                        if (allValues.Count > 0)
+                        {
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"DEBUG: Before update - Value=0x{register.Value:X4}, AdditionalValues.Count={register.AdditionalValues.Count}, EditableValue='{register.EditableValue}'"));
+                            
+
+                            // Set additional values first (without suppressing notifications)
+                            register.AdditionalValues.Clear();
+                            for (int i = 1; i < allValues.Count; i++)
+                            {
+                                register.AdditionalValues.Add(allValues[i]);
+                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                    $"DEBUG: Added AdditionalValues[{i-1}] = 0x{allValues[i]:X4}"));
+                            }
+                            
+
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"DEBUG: After setting AdditionalValues - Count={register.AdditionalValues.Count}, FormattedValue='{register.FormattedValue}'"));
+                            
+
+                            // Set the primary value (first register)
+                            register.Value = allValues[0];
+                            
+
+                            // CRITICAL FIX: Manually update EditableValue since Value might not have changed
+                            // The Value setter only updates EditableValue if the value actually changes
+                            // But in our case, the first pass already set the Value, so we need to force the update
+                            var currentFormattedValue = register.FormattedValue;
+                            register.GetType().GetField("_editableValue", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.SetValue(register, currentFormattedValue);
+                            
+
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"DEBUG: After manual EditableValue update - Value=0x{register.Value:X4}, EditableValue='{register.EditableValue}', FormattedValue='{register.FormattedValue}'"));
+                            
+
+                            // Force property change notifications to refresh the UI
+                            register.ForcePropertyChanged(nameof(RegisterDefinition.FormattedValue));
+                            register.ForcePropertyChanged(nameof(RegisterDefinition.EditableValue));
+                            
+
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(
+                                $"DEBUG: Final state - EditableValue='{register.EditableValue}', FormattedValue='{register.FormattedValue}'"));
+                        }
+                    }
+                    else
+                    {
+                        processedRegisters.Add(register.Address);
                     }
                 }
                 
@@ -1911,20 +2007,12 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Find the next available address
-                ushort nextAddress = 0;
-                if (_slaveService.RegisterDefinitions.Count > 0)
-                {
-                    var last = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).Last();
-                    nextAddress = (ushort)(last.Address + last.RegisterCount);
-                }
-                
-                // Create a new register with default values
+                // Create a new register with default values (address will be set by UpdateHoldingRegisterAddresses)
                 var newRegister = new RegisterDefinition
                 {
-                    Address = nextAddress,
+                    Address = 0, // Temporary address, will be updated
                     Value = 0,
-                    Name = $"Register {nextAddress}",
+                    Name = $"Register 0",
                     Description = "New holding register",
                     DataType = ModbusDataType.UInt16,
                     // Ensure the new register doesn't have IsRecentlyModified set
@@ -1946,6 +2034,12 @@ namespace ModbusTerm.ViewModels
                         notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
                     }
                     
+                    // Update all register addresses after adding
+                    UpdateHoldingRegisterAddresses();
+                    
+                    // Update the register name with the correct address
+                    newRegister.Name = $"Register {newRegister.Address}";
+                    
                     // Update the service's data store
                     _slaveService.UpdateRegisterValue(newRegister);
                     
@@ -1961,7 +2055,7 @@ namespace ModbusTerm.ViewModels
                     newRegister.SuppressNotifications = oldSuppressNotifications;
                 }
                 
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added holding register at address {nextAddress}"));
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added holding register at address {newRegister.Address}"));
             }
             catch (Exception ex)
             {
@@ -1976,20 +2070,12 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Find the next available address
-                ushort nextAddress = 0;
-                if (_slaveService.InputRegisterDefinitions.Count > 0)
-                {
-                    var last = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).Last();
-                    nextAddress = (ushort)(last.Address + last.RegisterCount);
-                }
-                
-                // Create a new register with default values
+                // Create a new register with default values (address will be set by UpdateInputRegisterAddresses)
                 var newRegister = new RegisterDefinition
                 {
-                    Address = nextAddress,
+                    Address = 0, // Temporary address, will be updated
                     Value = 0,
-                    Name = $"Input {nextAddress}",
+                    Name = $"Input 0",
                     Description = "New input register",
                     DataType = ModbusDataType.UInt16
                 };
@@ -2003,6 +2089,12 @@ namespace ModbusTerm.ViewModels
                     notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
                 }
                 
+                // Update all input register addresses after adding
+                UpdateInputRegisterAddresses();
+                
+                // Update the register name with the correct address
+                newRegister.Name = $"Input {newRegister.Address}";
+                
                 // Update the service's data store
                 _slaveService.UpdateInputRegisterValue(newRegister);
                 
@@ -2012,7 +2104,7 @@ namespace ModbusTerm.ViewModels
                 // Notify UI that input registers collection has changed
                 OnPropertyChanged(nameof(HasInputRegisters));
                 
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added input register at address {nextAddress}"));
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Added input register at address {newRegister.Address}"));
             }
             catch (Exception ex)
             {
@@ -2145,6 +2237,9 @@ namespace ModbusTerm.ViewModels
                 
                 // Remove from service
                 _slaveService.RemoveRegister(registerToRemove);
+                
+                // Update all register addresses after removal
+                UpdateHoldingRegisterAddresses();
                 
                 // Notify UI
                 OnPropertyChanged(nameof(HasRegisters));
@@ -2349,6 +2444,9 @@ namespace ModbusTerm.ViewModels
             _availableDataTypes.Add(ModbusDataType.Int32);
             _availableDataTypes.Add(ModbusDataType.Float32);
             _availableDataTypes.Add(ModbusDataType.Float64);
+            _availableDataTypes.Add(ModbusDataType.AsciiString);
+            _availableDataTypes.Add(ModbusDataType.Hex);
+            _availableDataTypes.Add(ModbusDataType.Binary);
             
             // Notify UI of changes
             OnPropertyChanged(nameof(AvailableDataTypes));
@@ -2504,6 +2602,12 @@ namespace ModbusTerm.ViewModels
                     OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update register {register.Address}: {ex.Message}"));
                 }
             }
+            
+            // If the data type or register count changed and we're not already updating addresses, update all addresses
+            if (sender is RegisterDefinition && (e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
+            {
+                UpdateHoldingRegisterAddresses();
+            }
         }
         
         /// <summary>
@@ -2517,6 +2621,12 @@ namespace ModbusTerm.ViewModels
                 try
                 {
                     _slaveService.UpdateInputRegisterValue(register);
+                    
+                    // If the data type or register count changed and we're not already updating addresses, update all addresses
+                    if ((e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
+                    {
+                        UpdateInputRegisterAddresses();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -3539,6 +3649,102 @@ namespace ModbusTerm.ViewModels
             if (e.PropertyName == nameof(ModbusFunctionParameters.StartAddress))
             {
                 UpdateWriteDataItemAddresses();
+            }
+        }
+
+        /// <summary>
+        /// Update addresses for all holding registers based on their data types and register counts
+        /// </summary>
+        private void UpdateHoldingRegisterAddresses()
+        {
+            if (_slaveService?.RegisterDefinitions == null || _isUpdatingAddresses) return;
+
+            _isUpdatingAddresses = true;
+            try
+            {
+                var sortedRegisters = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).ToList();
+                ushort currentAddress = 0; // Start from address 0
+
+                foreach (var register in sortedRegisters)
+                {
+                    register.Address = currentAddress;
+                    currentAddress = (ushort)(currentAddress + register.RegisterCount);
+                }
+            }
+            finally
+            {
+                _isUpdatingAddresses = false;
+            }
+        }
+
+        /// <summary>
+        /// Update addresses for all input registers based on their data types and register counts
+        /// </summary>
+        private void UpdateInputRegisterAddresses()
+        {
+            if (_slaveService?.InputRegisterDefinitions == null || _isUpdatingAddresses) return;
+
+            _isUpdatingAddresses = true;
+            try
+            {
+                var sortedRegisters = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).ToList();
+                ushort currentAddress = 0; // Start from address 0
+
+                foreach (var register in sortedRegisters)
+                {
+                    register.Address = currentAddress;
+                    currentAddress = (ushort)(currentAddress + register.RegisterCount);
+                }
+            }
+            finally
+            {
+                _isUpdatingAddresses = false;
+            }
+        }
+
+        /// <summary>
+        /// Update addresses for all coils (each coil takes 1 address)
+        /// </summary>
+        private void UpdateCoilAddresses()
+        {
+            if (_slaveService?.CoilDefinitions == null) return;
+
+            var sortedCoils = _slaveService.CoilDefinitions.OrderBy(c => c.Address).ToList();
+            ushort currentAddress = 0;
+
+            // Find the starting address (use the first coil's address if any exist)
+            if (sortedCoils.Count > 0)
+            {
+                currentAddress = sortedCoils[0].Address;
+            }
+
+            foreach (var coil in sortedCoils)
+            {
+                coil.Address = currentAddress;
+                currentAddress++;
+            }
+        }
+
+        /// <summary>
+        /// Update addresses for all discrete inputs (each takes 1 address)
+        /// </summary>
+        private void UpdateDiscreteInputAddresses()
+        {
+            if (_slaveService?.DiscreteInputDefinitions == null) return;
+
+            var sortedInputs = _slaveService.DiscreteInputDefinitions.OrderBy(d => d.Address).ToList();
+            ushort currentAddress = 0;
+
+            // Find the starting address (use the first input's address if any exist)
+            if (sortedInputs.Count > 0)
+            {
+                currentAddress = sortedInputs[0].Address;
+            }
+
+            foreach (var input in sortedInputs)
+            {
+                input.Address = currentAddress;
+                currentAddress++;
             }
         }
     }

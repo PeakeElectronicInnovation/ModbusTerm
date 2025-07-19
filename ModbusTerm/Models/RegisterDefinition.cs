@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace ModbusTerm.Models
@@ -50,23 +51,52 @@ namespace ModbusTerm.Models
             {
                 if (_value != value)
                 {
+                    var oldValue = _value;
                     _value = value;
+                    
+                    // Debug output for ASCII strings
+                    if (DataType == ModbusDataType.AsciiString)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"DEBUG Value setter START: Address={Address}, OldValue=0x{oldValue:X4}, NewValue=0x{_value:X4}, _editingInProgress={_editingInProgress}, AdditionalValues.Count={AdditionalValues.Count}");
+                    }
                     
                     // Only update EditableValue if this wasn't triggered by EditableValue setter
                     // This keeps the displayed value in sync when changes come from elsewhere
                     // but prevents disrupting user input in the EditableValue field
                     if (!_editingInProgress)
                     {
-                        _editableValue = FormattedValue;
+                        var newFormattedValue = FormattedValue;
+                        var oldEditableValue = _editableValue;
+                        _editableValue = newFormattedValue;
+                        
+                        // Debug output
+                        if (DataType == ModbusDataType.AsciiString)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"DEBUG Value setter UPDATE: OldEditableValue='{oldEditableValue}', NewFormattedValue='{newFormattedValue}', NewEditableValue='{_editableValue}'");
+                        }
                         
                         // Always notify for EditableValue regardless of suppression
                         // This is critical for external writes to show immediately in UI
                         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditableValue)));
                     }
+                    else
+                    {
+                        if (DataType == ModbusDataType.AsciiString)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"DEBUG Value setter SKIPPED: _editingInProgress=true, EditableValue remains '{_editableValue}'");
+                        }
+                    }
                     
                     // Notify value change
                     NotifyPropertyChanged();
                     NotifyPropertyChanged(nameof(FormattedValue)); 
+                }
+                else
+                {
+                    if (DataType == ModbusDataType.AsciiString)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"DEBUG Value setter NO CHANGE: Value already 0x{_value:X4}");
+                    }
                 }
             }
         }
@@ -156,7 +186,10 @@ namespace ModbusTerm.Models
                                 break;
                                 
                             case ModbusDataType.AsciiString:
-                                // Not implemented yet for EditableValue - would need UI changes
+                                // For ASCII strings, directly set the string value
+                                SetAsciiStringValue(value);
+                                // Notify that RegisterCount may have changed due to string length change
+                                NotifyPropertyChanged(nameof(RegisterCount));
                                 break;
                         }
                     }
@@ -270,6 +303,7 @@ namespace ModbusTerm.Models
                     ModbusDataType.UInt16 or ModbusDataType.Int16 or ModbusDataType.Hex or ModbusDataType.Binary => 1,
                     ModbusDataType.UInt32 or ModbusDataType.Int32 or ModbusDataType.Float32 => 2,
                     ModbusDataType.Float64 => 4,
+                    ModbusDataType.AsciiString => GetAsciiStringRegisterCount(),
                     _ => 1
                 };
             }
@@ -279,6 +313,25 @@ namespace ModbusTerm.Models
         /// Gets or sets additional registers for multi-register data types
         /// </summary>
         public List<ushort> AdditionalValues { get; set; } = new List<ushort>();
+
+        /// <summary>
+        /// Calculate the number of registers required for an ASCII string
+        /// </summary>
+        /// <returns>Number of registers needed (2 characters per register)</returns>
+        private int GetAsciiStringRegisterCount()
+        {
+            if (DataType != ModbusDataType.AsciiString)
+                return 1;
+
+            // Get the current string value from EditableValue
+            string stringValue = _editableValue ?? "";
+            
+            // Calculate registers needed (2 characters per register, round up)
+            int registerCount = (stringValue.Length + 1) / 2;
+            
+            // Minimum of 1 register
+            return Math.Max(1, registerCount);
+        }
 
         /// <summary>
         /// Gets the formatted value based on the data type
@@ -299,6 +352,7 @@ namespace ModbusTerm.Models
                         ModbusDataType.Int32 => GetInt32Value().ToString(),
                         ModbusDataType.Float32 => GetFloat32Value().ToString("F3"),
                         ModbusDataType.Float64 => GetFloat64Value().ToString("F6"),
+                        ModbusDataType.AsciiString => GetAsciiStringValue(),
                         _ => Value.ToString()
                     };
                 }
@@ -408,6 +462,112 @@ namespace ModbusTerm.Models
             
             // Update the formatted value
             NotifyPropertyChanged(nameof(FormattedValue));
+        }
+
+        private string GetAsciiStringValue()
+        {
+            try
+            {
+                var chars = new List<char>();
+                
+                // Extract characters from Value (first register) - first char from high byte, second char from low byte
+                if ((Value >> 8) != 0)
+                {
+                    char c = (char)(Value >> 8);
+                    chars.Add(c); // First char from high byte
+                }
+                if ((Value & 0xFF) != 0)
+                {
+                    char c = (char)(Value & 0xFF);
+                    chars.Add(c); // Second char from low byte
+                }
+                
+                // Extract characters from AdditionalValues - first char from high byte, second char from low byte
+                for (int i = 0; i < AdditionalValues.Count; i++)
+                {
+                    var reg = AdditionalValues[i];
+                    if ((reg >> 8) != 0)
+                    {
+                        char c = (char)(reg >> 8);
+                        chars.Add(c); // First char from high byte
+                    }
+                    if ((reg & 0xFF) != 0)
+                    {
+                        char c = (char)(reg & 0xFF);
+                        chars.Add(c); // Second char from low byte
+                    }
+                }
+                
+                // Remove null terminators and return as string
+                var result = new string(chars.Where(c => c != '\0').ToArray());
+                return result;
+            }
+            catch (Exception ex)
+            {
+                return "";
+            }
+        }
+        
+        private void SetAsciiStringValue(string value)
+        {
+            try
+            {
+                // Pad string to even length
+                if (value.Length % 2 != 0)
+                    value += "\0";
+                
+                // Calculate required registers
+                int requiredRegisters = Math.Max(1, (value.Length + 1) / 2);
+                
+                // Ensure we have enough space in AdditionalValues
+                while (AdditionalValues.Count < (requiredRegisters - 1))
+                {
+                    AdditionalValues.Add(0);
+                }
+                
+                // Trim if we have too many
+                while (AdditionalValues.Count > (requiredRegisters - 1))
+                {
+                    AdditionalValues.RemoveAt(AdditionalValues.Count - 1);
+                }
+                
+                // Set the first register (Value) - first char in high byte, second char in low byte
+                if (value.Length >= 1)
+                {
+                    ushort firstReg = (ushort)(value[0] << 8); // First char in high byte
+                    if (value.Length >= 2)
+                        firstReg |= (ushort)value[1]; // Second char in low byte
+                    Value = firstReg;
+                }
+                else
+                {
+                    Value = 0;
+                }
+                
+                // Set additional registers - first char in high byte, second char in low byte
+                for (int i = 0; i < AdditionalValues.Count; i++)
+                {
+                    int charIndex = (i + 1) * 2;
+                    ushort reg = 0;
+                    
+                    if (charIndex < value.Length)
+                        reg = (ushort)(value[charIndex] << 8); // First char in high byte
+                    if (charIndex + 1 < value.Length)
+                        reg |= (ushort)value[charIndex + 1]; // Second char in low byte
+                        
+                    AdditionalValues[i] = reg;
+                }
+                
+                // Update the formatted value and notify that Value changed to trigger slave service update
+                NotifyPropertyChanged(nameof(Value));
+                NotifyPropertyChanged(nameof(FormattedValue));
+            }
+            catch
+            {
+                // On error, clear to empty string
+                Value = 0;
+                AdditionalValues.Clear();
+            }
         }
         
         /// <summary>
