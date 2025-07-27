@@ -321,7 +321,7 @@ namespace ModbusTerm.ViewModels
         /// Gets the collection of coil definitions from the slave service
         /// </summary>
         public ObservableCollection<BooleanRegisterDefinition> CoilDefinitions => _slaveService.CoilDefinitions;
-        
+
         /// <summary>
         /// Gets the command to add a new coil in slave mode
         /// </summary>
@@ -1559,7 +1559,7 @@ namespace ModbusTerm.ViewModels
                     FileName = $"ModbusTerm_Log_{DateTime.Now:yyyy-MM-dd_HHmm}"
                 };
 
-                // Show the dialog and get result
+                // Show dialog and get result
                 if (saveFileDialog.ShowDialog() == true)
                 {
                     string filePath = saveFileDialog.FileName;
@@ -1982,12 +1982,20 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Create a new register with default values (address will be set by UpdateHoldingRegisterAddresses)
+                // Find the next available address based on existing registers and their register counts
+                ushort nextAddress = 0;
+                if (_slaveService.RegisterDefinitions.Count > 0)
+                {
+                    var lastRegister = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).Last();
+                    nextAddress = (ushort)(lastRegister.Address + lastRegister.RegisterCount);
+                }
+                
+                // Create a new register with the calculated address
                 var newRegister = new RegisterDefinition
                 {
-                    Address = 0, // Temporary address, will be updated
+                    Address = nextAddress,
                     Value = 0,
-                    Name = $"Register 0",
+                    Name = $"Register {nextAddress}",
                     Description = "New holding register",
                     DataType = ModbusDataType.UInt16,
                     // Ensure the new register doesn't have IsRecentlyModified set
@@ -2000,7 +2008,7 @@ namespace ModbusTerm.ViewModels
                 
                 try
                 {
-                    // Add to the service's collection (this must happen first)
+                    // Add to the service's collection
                     _slaveService.RegisterDefinitions.Add(newRegister);
                     
                     // Hook up property change notification
@@ -2008,12 +2016,6 @@ namespace ModbusTerm.ViewModels
                     {
                         notifyPropertyChanged.PropertyChanged += Register_PropertyChanged;
                     }
-                    
-                    // Update all register addresses after adding
-                    UpdateHoldingRegisterAddresses();
-                    
-                    // Update the register name with the correct address
-                    newRegister.Name = $"Register {newRegister.Address}";
                     
                     // Update the service's data store
                     _slaveService.UpdateRegisterValue(newRegister);
@@ -2045,12 +2047,20 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Create a new register with default values (address will be set by UpdateInputRegisterAddresses)
+                // Find the next available address based on existing registers and their register counts
+                ushort nextAddress = 0;
+                if (_slaveService.InputRegisterDefinitions.Count > 0)
+                {
+                    var lastRegister = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).Last();
+                    nextAddress = (ushort)(lastRegister.Address + lastRegister.RegisterCount);
+                }
+                
+                // Create a new register with the calculated address
                 var newRegister = new RegisterDefinition
                 {
-                    Address = 0, // Temporary address, will be updated
+                    Address = nextAddress,
                     Value = 0,
-                    Name = $"Input 0",
+                    Name = $"Input {nextAddress}",
                     Description = "New input register",
                     DataType = ModbusDataType.UInt16
                 };
@@ -2063,12 +2073,6 @@ namespace ModbusTerm.ViewModels
                 {
                     notifyPropertyChanged.PropertyChanged += InputRegister_PropertyChanged;
                 }
-                
-                // Update all input register addresses after adding
-                UpdateInputRegisterAddresses();
-                
-                // Update the register name with the correct address
-                newRegister.Name = $"Input {newRegister.Address}";
                 
                 // Update the service's data store
                 _slaveService.UpdateInputRegisterValue(newRegister);
@@ -2111,9 +2115,6 @@ namespace ModbusTerm.ViewModels
                     notifyPropertyChanged.PropertyChanged -= InputRegister_PropertyChanged;
                 }
                 
-                // Notify UI
-                OnPropertyChanged(nameof(HasInputRegisters));
-                
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Removed input register at address {registerToRemove.Address}"));
             }
             catch (Exception ex)
@@ -2144,9 +2145,6 @@ namespace ModbusTerm.ViewModels
                     
                     _slaveService.InputRegisterDefinitions.Remove(register);
                 }
-                
-                // Notify UI
-                OnPropertyChanged(nameof(HasInputRegisters));
                 
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("All input registers cleared"));
             }
@@ -2213,11 +2211,7 @@ namespace ModbusTerm.ViewModels
                 // Remove from service
                 _slaveService.RemoveRegister(registerToRemove);
                 
-                // Update all register addresses after removal
-                UpdateHoldingRegisterAddresses();
-                
-                // Notify UI
-                OnPropertyChanged(nameof(HasRegisters));
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Removed register at address {registerToRemove.Address}"));
             }
             catch (Exception ex)
             {
@@ -2241,9 +2235,6 @@ namespace ModbusTerm.ViewModels
                 {
                     _slaveService.RemoveRegister(register);
                 }
-                
-                // Notify UI
-                OnPropertyChanged(nameof(HasRegisters));
                 
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("All registers cleared"));
             }
@@ -2596,18 +2587,18 @@ namespace ModbusTerm.ViewModels
                 try
                 {
                     _slaveService.UpdateInputRegisterValue(register);
-                    
-                    // If the data type or register count changed and we're not already updating addresses, update all addresses
-                    if ((e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
-                    {
-                        UpdateInputRegisterAddresses();
-                    }
                 }
                 catch (Exception ex)
                 {
                     // Log the error but don't crash
                     OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to update input register {register.Address}: {ex.Message}"));
                 }
+            }
+            
+            // If the data type or register count changed and we're not already updating addresses, update all addresses
+            if (sender is RegisterDefinition && (e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
+            {
+                UpdateInputRegisterAddresses();
             }
         }
         
@@ -3304,10 +3295,6 @@ namespace ModbusTerm.ViewModels
         }
         
         // Methods for coils are implemented earlier in this file.
-        
-        // Import and export methods for coils are implemented earlier in this file.
-        
-        // Methods for discrete inputs are implemented earlier in this file.
         
         /// <summary>
         /// Loads a profile by name
