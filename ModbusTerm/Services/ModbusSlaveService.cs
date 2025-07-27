@@ -315,17 +315,40 @@ namespace ModbusTerm.Services
                 // Initialize registers with defined values
                 InitializeRegisters();
                 
-                // Create and open serial port with correct parameters
+                // Create and configure serial port with comprehensive settings for reliable slave operation
                 _serialPort = new SerialPort
                 {
                     PortName = parameters.ComPort, // Use selected COM port
                     BaudRate = parameters.UseCustomBaudRate ? parameters.CustomBaudRate : parameters.BaudRate,
                     Parity = parameters.Parity,
                     DataBits = parameters.DataBits,
-                    StopBits = parameters.StopBits
+                    StopBits = parameters.StopBits,
+                    
+                    // Critical settings for reliable Modbus RTU slave communication
+                    Handshake = Handshake.None,
+                    RtsEnable = false,
+                    DtrEnable = false,
+                    
+                    // Buffer settings - important for preventing data loss
+                    ReadBufferSize = 4096,
+                    WriteBufferSize = 4096,
+                    
+                    // Timeout settings - crucial for proper request/response handling
+                    ReadTimeout = Math.Max(parameters.Timeout, 1000), // Use connection timeout or minimum 1 second
+                    WriteTimeout = Math.Max(parameters.Timeout / 2, 500), // Half of read timeout or minimum 500ms
+                    
+                    // Prevent automatic newline handling which can interfere with binary data
+                    NewLine = "\n",
+                    
+                    // Ensure immediate processing of incoming data
+                    ReceivedBytesThreshold = 1
                 };
                 
                 _serialPort.Open();
+                
+                // Clear any existing data in the buffers
+                _serialPort.DiscardInBuffer();
+                _serialPort.DiscardOutBuffer();
                 
                 // Create RTU slave network
                 var factory = new ModbusFactory();
@@ -340,23 +363,49 @@ namespace ModbusTerm.Services
                 _cancellationTokenSource = new CancellationTokenSource();
                 var token = _cancellationTokenSource.Token;
                 
-                // Listen for Modbus requests in background
-                Task.Run(() => {
+                // Set connection status before starting listener
+                IsConnected = true;
+                
+                // Listen for Modbus requests in background with improved error handling
+                Task.Run(async () => {
                     try {
                         while (!token.IsCancellationRequested) {
-                            _network.ListenAsync(token).Wait(1000);
+                            try
+                            {
+                                // Use async listening without timeout to ensure proper response handling
+                                await _network.ListenAsync(token);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                // Expected when cancellation is requested
+                                break;
+                            }
+                            catch (Exception ex) when (!token.IsCancellationRequested)
+                            {
+                                // Log individual request errors but continue listening
+                                RaiseCommunicationEvent(CommunicationEvent.CreateWarningEvent($"RTU slave request error: {ex.Message}"));
+                                
+                                // Small delay before continuing to prevent rapid error loops
+                                await Task.Delay(10, token);
+                            }
                         }
                     }
-                    catch (OperationCanceledException) { /* Expected when cancellation requested */ }
-                    catch (Exception ex) {
-                        if (!token.IsCancellationRequested) {
+                    catch (OperationCanceledException) 
+                    { 
+                        // Expected when cancellation requested 
+                    }
+                    catch (Exception ex) 
+                    {
+                        if (!token.IsCancellationRequested) 
+                        {
                             RaiseCommunicationEvent(CommunicationEvent.CreateErrorEvent($"RTU slave error: {ex.Message}"));
+                            IsConnected = false;
                         }
                     }
                 }, token);
 
                 // Report success to UI
-                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Slave started on {parameters.ComPort}"));
+                RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"RTU slave started on {parameters.ComPort} with ID {_slaveId}"));
 
                 return true;
             }
