@@ -130,22 +130,52 @@ namespace ModbusTerm.Services
 
             try
             {
-                // Create and open serial port
+                // Create and configure serial port with comprehensive settings
                 _serialPort = new SerialPort
                 {
                     PortName = parameters.ComPort,
                     BaudRate = parameters.UseCustomBaudRate ? parameters.CustomBaudRate : parameters.BaudRate,
                     Parity = parameters.Parity,
                     DataBits = parameters.DataBits,
-                    StopBits = parameters.StopBits
+                    StopBits = parameters.StopBits,
+                    
+                    // Critical settings for reliable Modbus RTU communication
+                    Handshake = Handshake.None,
+                    RtsEnable = false,
+                    DtrEnable = false,
+                    
+                    // Buffer settings - important for preventing data loss
+                    ReadBufferSize = 4096,
+                    WriteBufferSize = 4096,
+                    
+                    // Timeout settings - crucial for proper response handling
+                    ReadTimeout = Math.Max(parameters.Timeout, 1000), // Use connection timeout or minimum 1 second
+                    WriteTimeout = Math.Max(parameters.Timeout / 2, 500), // Half of read timeout or minimum 500ms
+                    
+                    // Prevent automatic newline handling which can interfere with binary data
+                    NewLine = "\n",
+                    
+                    // Ensure immediate transmission of data
+                    ReceivedBytesThreshold = 1
                 };
                 
                 _serialPort.Open();
+                
+                // Additional post-open configuration
+                _serialPort.DiscardInBuffer();
+                _serialPort.DiscardOutBuffer();
 
-                // Create Modbus RTU master
+                // Create Modbus RTU master with proper configuration
                 var factory = new ModbusFactory();
                 var adapter = new SerialPortAdapter(_serialPort);
                 _master = factory.CreateRtuMaster(adapter);
+                
+                // Configure NModbus retry settings to prevent multiple rapid retries
+                if (_master != null)
+                {
+                    _master.Transport.Retries = 0; // Disable internal retries - we handle timeouts at application level
+                    _master.Transport.WaitToRetryMilliseconds = 250; // If retries were enabled, wait longer between attempts
+                }
 
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Connected to RTU device on {parameters.ComPort}"));
                 return true;
@@ -651,16 +681,46 @@ namespace ModbusTerm.Services
                         BaudRate = baudRate,
                         Parity = parity,
                         DataBits = dataBits,
-                        StopBits = stopBits
+                        StopBits = stopBits,
+                        
+                        // Critical settings for reliable Modbus RTU communication
+                        Handshake = Handshake.None,
+                        RtsEnable = false,
+                        DtrEnable = false,
+                        
+                        // Buffer settings - important for preventing data loss
+                        ReadBufferSize = 4096,
+                        WriteBufferSize = 4096,
+                        
+                        // Timeout settings - crucial for proper response handling
+                        ReadTimeout = Math.Max(rtuParams.Timeout, 1000), // Use connection timeout or minimum 1 second
+                        WriteTimeout = Math.Max(rtuParams.Timeout / 2, 500), // Half of read timeout or minimum 500ms
+                        
+                        // Prevent automatic newline handling which can interfere with binary data
+                        NewLine = "\n",
+                        
+                        // Ensure immediate transmission of data
+                        ReceivedBytesThreshold = 1
                     };
                     
                     _serialPort.Open();
                     
+                    // Additional post-open configuration
+                    _serialPort.DiscardInBuffer();
+                    _serialPort.DiscardOutBuffer();
+
                     // Recreate Modbus RTU master
                     var factory = new ModbusFactory();
                     var adapter = new SerialPortAdapter(_serialPort);
                     _master = factory.CreateRtuMaster(adapter);
                     
+                    // Configure NModbus retry settings to prevent multiple rapid retries
+                    if (_master != null)
+                    {
+                        _master.Transport.Retries = 0; // Disable internal retries - we handle timeouts at application level
+                        _master.Transport.WaitToRetryMilliseconds = 250; // If retries were enabled, wait longer between attempts
+                    }
+
                     RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
                         $"RTU connection reset successfully on attempt {attempt}"));
                     return true; // Success
