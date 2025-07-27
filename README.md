@@ -2,12 +2,19 @@
 
 A comprehensive Modbus testing application supporting both TCP and RTU connections with master and slave device functionality. ModbusTerm provides an easy-to-use interface for testing, debugging, and simulating Modbus devices in industrial automation environments.
 
-## Version 1.0.0
+## Version 1.1.0
 
-Released on 2025-06-30 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)), the very first version! Probably a few bugs - please report them to me! Some known issues:
+Released on 2025-07-27 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version includes significant improvements and bug fixes based on user feedback.
 
-- Register configuration in slave doesn't like registers being added once the slave server is started (Connect is clicked). Workaround - add registers, ignore complaints, navigate away from slave mode and then back before updating your register values and hitting Connect again.
-- ASCII data type is still a work in progress, hoping to have this implemented properly in the next version.
+### What's New in Version 1.1
+
+- **Custom Baud Rates**: Full support for custom baud rate configuration in RTU mode
+- **Enhanced ASCII Mode**: Proper ASCII data type implementation with byte swap options (MSB/LSB first)
+- **Improved HEX Mode**: Complete HEX mode implementation for better data visualization
+- **Slave Mode Fixes**: Resolved register configuration issues when adding registers after connection
+- **Slave ID Configuration**: Added slave ID setting capability for slave mode operations
+- **Smart Scan Management**: Automatic scan termination on disconnect for better resource management
+- **Stability Improvements**: Enhanced serial port handling and communication reliability
 
 ## Features
 
@@ -51,7 +58,7 @@ Released on 2025-06-30 (see [Releases](https://github.com/PeakeElectronicInnovat
 - Adjustable baud rate, parity, data bits, and stop bits
 - RTU Master and RTU Slave functionality
 - Device scanning capability
-- COMMING SOON: Support for custom baud rates
+- Full support for custom baud rates
 
 ## Master Mode Features
 
@@ -69,7 +76,8 @@ Released on 2025-06-30 (see [Releases](https://github.com/PeakeElectronicInnovat
   - UInt16, Int16 (single register values)
   - UInt32, Int32, Float32 (double register values)
   - Float64 (quad register values)
-  - Hex and Binary display
+  - ASCII with configurable byte order (MSB/LSB first)
+  - Hex and Binary display with enhanced formatting
 - Reverse register order option for compatibility with non-standard Modbus implementations
 - Customisable request parameters
 
@@ -84,6 +92,8 @@ Released on 2025-06-30 (see [Releases](https://github.com/PeakeElectronicInnovat
 - Value modification with real-time updates
 - Import/Export register configurations
 - Individual data type selection for each register
+- Configurable slave ID for multi-device simulation
+- Improved register addition workflow with better error handling
 
 ## Profile Management
 
