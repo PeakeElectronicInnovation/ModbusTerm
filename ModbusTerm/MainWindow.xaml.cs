@@ -115,7 +115,24 @@ public partial class MainWindow : Window
             var mode = radioButton.Tag?.ToString() ?? string.Empty;
             
             // Update UI based on the mode
-            UpdateUIForMode(mode == "Master");
+            switch (mode)
+            {
+                case "Master":
+                    _viewModel.IsMasterMode = true;
+                    _viewModel.IsListenMode = false;
+                    UpdateUIForMode(true);
+                    break;
+                case "Slave":
+                    _viewModel.IsMasterMode = false;
+                    _viewModel.IsListenMode = false;
+                    UpdateUIForMode(false);
+                    break;
+                case "ListenIn":
+                    _viewModel.IsMasterMode = false;
+                    _viewModel.IsListenMode = true;
+                    UpdateUIForMode(false);
+                    break;
+            }
         }
     }
     

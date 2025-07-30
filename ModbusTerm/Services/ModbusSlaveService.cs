@@ -26,6 +26,8 @@ namespace ModbusTerm.Services
         private SerialPort? _serialPort;
         private bool _isMaster = false;
         private byte _slaveId = 1;
+        private readonly HashSet<string> _connectedClients = new HashSet<string>();
+        private Timer? _connectionMonitorTimer;
 
         /// <summary>
         /// Gets or sets the Modbus Slave ID
@@ -53,6 +55,11 @@ namespace ModbusTerm.Services
         /// Event raised when a communication event occurs
         /// </summary>
         public event EventHandler<CommunicationEvent>? CommunicationEventOccurred;
+        
+        /// <summary>
+        /// Event raised when the connection status changes
+        /// </summary>
+        public event EventHandler<ConnectionStatus>? ConnectionStatusChanged;
         
         /// <summary>
         /// Event raised when a holding register is changed by an external Modbus master
@@ -96,7 +103,14 @@ namespace ModbusTerm.Services
         public ConnectionStatus ConnectionStatus 
         { 
             get => _connectionStatus; 
-            private set => _connectionStatus = value; 
+            private set 
+            {
+                if (_connectionStatus != value)
+                {
+                    _connectionStatus = value;
+                    ConnectionStatusChanged?.Invoke(this, value);
+                }
+            }
         }
 
         /// <summary>
@@ -260,6 +274,10 @@ namespace ModbusTerm.Services
                     }
                 }, token);
 
+                // Start connection monitoring
+                StartConnectionMonitoring(parameters.Port);
+                IsConnected = true;
+
                 // Report success to UI
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"Slave started on port {parameters.Port}"));
                 
@@ -278,6 +296,9 @@ namespace ModbusTerm.Services
         /// </summary>
         private void StopTcpSlave()
         {
+            // Stop connection monitoring first
+            StopConnectionMonitoring();
+            
             _cancellationTokenSource?.Cancel();
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
@@ -290,6 +311,8 @@ namespace ModbusTerm.Services
                 _tcpListener.Stop();
                 _tcpListener = null;
             }
+            
+            IsConnected = false;
         }
 
         /// <summary>
@@ -927,6 +950,148 @@ namespace ModbusTerm.Services
         private void RaiseCommunicationEvent(CommunicationEvent e)
         {
             CommunicationEventOccurred?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Start monitoring TCP client connections
+        /// </summary>
+        private void StartConnectionMonitoring(int port)
+        {
+            // Start a timer to periodically check for connected clients
+            _connectionMonitorTimer = new Timer(CheckTcpConnections, port, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        }
+
+        /// <summary>
+        /// Stop connection monitoring
+        /// </summary>
+        private void StopConnectionMonitoring()
+        {
+            _connectionMonitorTimer?.Dispose();
+            _connectionMonitorTimer = null;
+            
+            // Clear connected clients and update status
+            if (_connectedClients.Count > 0)
+            {
+                _connectedClients.Clear();
+                UpdateConnectionStatus();
+            }
+        }
+
+        /// <summary>
+        /// Check for TCP client connections
+        /// </summary>
+        private void CheckTcpConnections(object? state)
+        {
+            if (state is not int port || _cancellationTokenSource?.Token.IsCancellationRequested == true)
+                return;
+
+            try
+            {
+                var currentClients = new HashSet<string>();
+                
+                // Get active TCP connections on the specified port
+                var tcpConnections = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties()
+                    .GetActiveTcpConnections()
+                    .Where(conn => conn.LocalEndPoint.Port == port && 
+                                   conn.State == System.Net.NetworkInformation.TcpState.Established)
+                    .ToList();
+
+                foreach (var connection in tcpConnections)
+                {
+                    var clientEndpoint = connection.RemoteEndPoint.ToString();
+                    currentClients.Add(clientEndpoint);
+                    
+                    // Check if this is a new connection
+                    if (!_connectedClients.Contains(clientEndpoint))
+                    {
+                        OnClientConnected(connection.RemoteEndPoint);
+                    }
+                }
+
+                // Check for disconnected clients
+                var disconnectedClients = _connectedClients.Except(currentClients).ToList();
+                foreach (var client in disconnectedClients)
+                {
+                    OnClientDisconnected(client);
+                }
+
+                // Update the connected clients list
+                _connectedClients.Clear();
+                foreach (var client in currentClients)
+                {
+                    _connectedClients.Add(client);
+                }
+
+                UpdateConnectionStatus();
+            }
+            catch (Exception ex)
+            {
+                // Silently handle monitoring errors to avoid spam
+                System.Diagnostics.Debug.WriteLine($"Connection monitoring error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handle client connection event
+        /// </summary>
+        private void OnClientConnected(IPEndPoint remoteEndPoint)
+        {
+            var clientInfo = GetClientInfo(remoteEndPoint);
+            RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                $"Master connected from {clientInfo}"));
+        }
+
+        /// <summary>
+        /// Handle client disconnection event
+        /// </summary>
+        private void OnClientDisconnected(string clientEndpoint)
+        {
+            RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent(
+                $"Master disconnected: {clientEndpoint}"));
+        }
+
+        /// <summary>
+        /// Get client information including hostname if possible
+        /// </summary>
+        private string GetClientInfo(IPEndPoint remoteEndPoint)
+        {
+            try
+            {
+                var hostEntry = System.Net.Dns.GetHostEntry(remoteEndPoint.Address);
+                return $"{remoteEndPoint.Address} ({hostEntry.HostName}):{remoteEndPoint.Port}";
+            }
+            catch
+            {
+                // If hostname resolution fails, just return IP:Port
+                return remoteEndPoint.ToString();
+            }
+        }
+
+        /// <summary>
+        /// Update connection status based on connected clients
+        /// </summary>
+        private void UpdateConnectionStatus()
+        {
+            var oldStatus = ConnectionStatus;
+            
+            if (!IsConnected)
+            {
+                ConnectionStatus = ConnectionStatus.Disconnected;
+            }
+            else if (_connectedClients.Count > 0)
+            {
+                ConnectionStatus = ConnectionStatus.MasterConnected;
+            }
+            else
+            {
+                ConnectionStatus = ConnectionStatus.Connected;
+            }
+            
+            // Debug logging
+            if (oldStatus != ConnectionStatus)
+            {
+
+            }
         }
 
         /// <summary>

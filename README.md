@@ -2,11 +2,20 @@
 
 A comprehensive Modbus testing application supporting both TCP and RTU connections with master and slave device functionality. ModbusTerm provides an easy-to-use interface for testing, debugging, and simulating Modbus devices in industrial automation environments.
 
-## Version 1.1.0
+## Version 1.2.0
 
-Released on 2025-07-27 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version includes significant improvements and bug fixes based on user feedback.
+Released on 2025-07-30 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version introduces powerful new monitoring and debugging capabilities.
 
-### What's New in Version 1.1
+### What's New in Version 1.2
+
+- **Listen In Mode**: New passive monitoring mode for RTU communications - capture and analyze Modbus traffic between master and slave devices without interfering with communication
+- **Enhanced CSV Export**: Listen In data can now be exported in CSV format for analysis in Excel and other spreadsheet applications
+- **TCP Slave Connection Monitoring**: Real-time visual feedback when Modbus TCP masters connect to your slave device
+- **Smart LED Indicators**: Enhanced connection status display with blue LED when masters are connected to TCP slave
+- **Master Connection Logging**: Automatic logging of master connections and disconnections with IP address and hostname resolution
+- **Improved Data Capture**: Comprehensive message capture with timestamps, direction, CRC validation, and parsed data
+
+### Previous Version 1.1.0 Features
 
 - **Custom Baud Rates**: Full support for custom baud rate configuration in RTU mode
 - **Enhanced ASCII Mode**: Proper ASCII data type implementation with byte swap options (MSB/LSB first)
@@ -18,12 +27,15 @@ Released on 2025-07-27 (see [Releases](https://github.com/PeakeElectronicInnovat
 
 ## Features
 
+- **Triple Operation Modes**: Master, Slave, and Listen In modes for comprehensive Modbus testing and monitoring
 - **Dual Connection Types**: Support for both Modbus TCP (network-based) and Modbus RTU (serial-based) connections
-- **Master/Slave Modes**: Function as either a Modbus master (client) or slave (server) device
+- **Listen In Mode**: Passive monitoring of RTU communications between existing master/slave devices without interference
+- **Enhanced Connection Monitoring**: Real-time visual feedback for TCP slave connections with smart LED indicators
 - **Connection Profiles**: Save and load connection settings with profile management
 - **Data Visualization**: View and interact with Modbus registers in various data formats (UInt16, Int16, UInt32, Int32, Float32, Float64)
 - **Byte Order Options**: Support for standard Modbus LSB-first order and optional MSB-first order for compatibility with different devices
-- **Real-time Monitoring**: Track communication events through an integrated event log
+- **Real-time Monitoring**: Track communication events through an integrated event log with master connection details
+- **Data Export**: Export captured Listen In data in CSV format for analysis in spreadsheet applications
 - **Register Management**: Define and manage custom register configurations
 - **Device Scanning**: Scan for RTU devices on the network to detect active slave IDs
 
@@ -94,6 +106,30 @@ Released on 2025-07-27 (see [Releases](https://github.com/PeakeElectronicInnovat
 - Individual data type selection for each register
 - Configurable slave ID for multi-device simulation
 - Improved register addition workflow with better error handling
+- **TCP Connection Monitoring**: Real-time detection of master connections and disconnections
+- **Visual Connection Status**: Smart LED indicators showing connection state:
+  - Gray: Disconnected
+  - Green: Slave listening, no masters connected
+  - Blue: Master connected to slave
+  - Red: Connection failed
+- **Master Connection Logging**: Automatic logging with IP address and hostname resolution
+
+## Listen In Mode Features
+
+- **Passive Monitoring**: Monitor Modbus RTU communications without interfering with existing master/slave operations
+- **Comprehensive Data Capture**: Capture all Modbus messages with detailed information:
+  - Timestamp with millisecond precision
+  - Communication direction (Master → Slave, Slave → Master)
+  - Slave ID and function code
+  - Data length and CRC validation status
+  - Parsed data interpretation
+  - Raw message bytes
+- **Real-time Display**: Live view of captured messages in an organized table format
+- **Data Export Options**: 
+  - Export to CSV format for analysis in Excel and other spreadsheet tools
+  - Export to text format for legacy compatibility
+- **Message Management**: Clear captured messages and copy to clipboard functionality
+- **COM Port Compatibility**: Works with any RTU connection parameters (baud rate, parity, data bits, stop bits)
 
 ## Profile Management
 
@@ -118,7 +154,7 @@ Want to test it out but don't have any modbus devices to test with? Run two inst
 
 ## Technical Details
 
-- Built with .NET 7 and C#
+- Built with .NET 9 and C#
 - Uses NModbus library for Modbus protocol implementation
 - MVVM architecture pattern
 - WPF-based user interface

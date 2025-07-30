@@ -27,6 +27,7 @@ namespace ModbusTerm.ViewModels
         private const string PROFILE_FILE_FILTER = "JSON Files (*.json)|*.json|All Files (*.*)|*.*";
         private readonly IModbusService _masterService;
         private readonly ModbusSlaveService _slaveService;
+        private readonly ModbusListenService _listenService;
         private readonly ProfileService _profileService;
         private IModbusService? _currentService;
         private ConnectionParameters _connectionParameters;
@@ -35,6 +36,7 @@ namespace ModbusTerm.ViewModels
         private ObservableCollection<string> _profiles = new ObservableCollection<string>();
         private string _selectedProfileName = "Default Profile";
         private bool _isMasterMode = true;
+        private bool _isListenMode = false;
         private ModbusFunctionParameters _currentRequest;
         private ModbusResponseInfo? _lastResponse;
         private ObservableCollection<ModbusResponseItem> _responseItems = new ObservableCollection<ModbusResponseItem>();
@@ -84,6 +86,12 @@ namespace ModbusTerm.ViewModels
         private ICommand _removeDiscreteInputCommand;
         private ICommand _importDiscreteInputsCommand;
         private ICommand _exportDiscreteInputsCommand;
+        
+        // Listen In mode management
+        private CapturedModbusMessage? _selectedCapturedMessage;
+        private ICommand _clearCapturedMessagesCommand;
+        private ICommand _exportCapturedMessagesCommand;
+        private ICommand _copyCapturedMessagesToClipboardCommand;
         private bool _showDiscreteInputs = true;
         
         // Flag to prevent infinite recursion during address updates
@@ -407,7 +415,13 @@ namespace ModbusTerm.ViewModels
         public ConnectionStatus ConnectionStatus
         {
             get => _connectionStatus;
-            set => SetProperty(ref _connectionStatus, value);
+            set 
+            {
+                var oldValue = _connectionStatus;
+                if (SetProperty(ref _connectionStatus, value))
+                {
+                }
+            }
         }
 
         /// <summary>
@@ -420,6 +434,17 @@ namespace ModbusTerm.ViewModels
             {
                 if (SetProperty(ref _isMasterMode, value))
                 {
+                    // When entering master mode, disable listen mode
+                    if (value)
+                    {
+                        // Use direct field assignment to avoid circular property changes
+                        if (_isListenMode)
+                        {
+                            _isListenMode = false;
+                            OnPropertyChanged(nameof(IsListenMode));
+                        }
+                    }
+                    
                     // Update connection parameters
                     if (_connectionParameters != null)
                     {
@@ -435,7 +460,39 @@ namespace ModbusTerm.ViewModels
         /// <summary>
         /// Gets whether the application is in slave mode
         /// </summary>
-        public bool IsSlaveMode => !IsMasterMode;
+        public bool IsSlaveMode => !IsMasterMode && !IsListenMode;
+        
+        /// <summary>
+        /// Gets or sets whether the application is in listen mode
+        /// </summary>
+        public bool IsListenMode
+        {
+            get => _isListenMode;
+            set
+            {
+                if (SetProperty(ref _isListenMode, value))
+                {
+                    // When entering listen mode, disable master mode
+                    if (value)
+                    {
+                        // Use direct field assignment to avoid circular property changes
+                        if (_isMasterMode)
+                        {
+                            _isMasterMode = false;
+                            OnPropertyChanged(nameof(IsMasterMode));
+                        }
+                    }
+                    
+                    OnPropertyChanged(nameof(IsSlaveMode));
+                    OnPropertyChanged(nameof(IsRtuModeOnly));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets whether Listen In mode is available (only for RTU)
+        /// </summary>
+        public bool IsRtuModeOnly => ConnectionParameters is RtuConnectionParameters;
 
         /// <summary>
         /// Gets or sets the connection parameters
@@ -454,6 +511,7 @@ namespace ModbusTerm.ViewModels
                     // Update connection type properties for binding
                     OnPropertyChanged(nameof(IsTcpMode));
                     OnPropertyChanged(nameof(IsRtuMode));
+                    OnPropertyChanged(nameof(IsRtuModeOnly));
                 }
             }
         }
@@ -760,6 +818,35 @@ namespace ModbusTerm.ViewModels
         /// Gets the input register definitions for slave mode
         /// </summary>
         public ObservableCollection<RegisterDefinition> InputRegisterDefinitions => _slaveService.InputRegisterDefinitions;
+        
+        /// <summary>
+        /// Gets the captured Modbus messages for listen mode
+        /// </summary>
+        public ObservableCollection<CapturedModbusMessage> CapturedMessages => _listenService.CapturedMessages;
+        
+        /// <summary>
+        /// Gets or sets the selected captured message
+        /// </summary>
+        public CapturedModbusMessage? SelectedCapturedMessage
+        {
+            get => _selectedCapturedMessage;
+            set => SetProperty(ref _selectedCapturedMessage, value);
+        }
+        
+        /// <summary>
+        /// Gets the command to clear all captured messages
+        /// </summary>
+        public ICommand ClearCapturedMessagesCommand => _clearCapturedMessagesCommand;
+        
+        /// <summary>
+        /// Gets the command to export captured messages
+        /// </summary>
+        public ICommand ExportCapturedMessagesCommand => _exportCapturedMessagesCommand;
+        
+        /// <summary>
+        /// Gets the command to copy captured messages to clipboard
+        /// </summary>
+        public ICommand CopyCapturedMessagesToClipboardCommand => _copyCapturedMessagesToClipboardCommand;
 
         /// <summary>
         /// Constructor
@@ -769,11 +856,14 @@ namespace ModbusTerm.ViewModels
             // Create services
             _masterService = new ModbusMasterService();
             _slaveService = new ModbusSlaveService();
+            _listenService = new ModbusListenService();
             _profileService = new ProfileService();
 
             // Subscribe to events
             _masterService.CommunicationEventOccurred += OnCommunicationEvent;
             _slaveService.CommunicationEventOccurred += OnCommunicationEvent;
+            _slaveService.ConnectionStatusChanged += OnSlaveConnectionStatusChanged;
+            _listenService.CommunicationEventOccurred += OnCommunicationEvent;
             
             // Subscribe to device scan events
             _masterService.DeviceScanResultReceived += OnDeviceScanResultReceived;
@@ -839,6 +929,11 @@ namespace ModbusTerm.ViewModels
             _removeDiscreteInputCommand = new RelayCommand(_ => RemoveDiscreteInput(), _ => IsSlaveMode && HasSelectedDiscreteInput);
             _importDiscreteInputsCommand = new RelayCommand(_ => ImportDiscreteInputs(), _ => IsSlaveMode);
             _exportDiscreteInputsCommand = new RelayCommand(_ => ExportDiscreteInputs(), _ => IsSlaveMode && HasDiscreteInputs);
+            
+            // Initialize Listen In mode commands
+            _clearCapturedMessagesCommand = new RelayCommand(_ => ClearCapturedMessages(), _ => IsListenMode);
+            _exportCapturedMessagesCommand = new RelayCommand(_ => ExportCapturedMessages(), _ => IsListenMode && CapturedMessages.Count > 0);
+            _copyCapturedMessagesToClipboardCommand = new RelayCommand(_ => CopyCapturedMessagesToClipboard(), _ => IsListenMode && CapturedMessages.Count > 0);
             
             // Default showing tabs to true
             _showInputRegisters = true;
@@ -1334,7 +1429,7 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
-        /// Handle communication events from the services
+        /// Handle communication events from services
         /// </summary>
         private void OnCommunicationEvent(object? sender, CommunicationEvent e)
         {
@@ -1346,6 +1441,21 @@ namespace ModbusTerm.ViewModels
         }
 
         /// <summary>
+        /// Handle connection status changes from the slave service
+        /// </summary>
+        private void OnSlaveConnectionStatusChanged(object? sender, ConnectionStatus newStatus)
+        {
+            // Update UI on the main thread
+            App.Current.Dispatcher.Invoke(() =>
+            {
+                // Only update if we're in slave mode to avoid conflicts with master mode
+                if (IsSlaveMode)
+                {
+                    ConnectionStatus = newStatus;
+                }
+            });
+        }
+        /// <summary>
         /// Connect to a Modbus device
         /// </summary>
         private async Task ConnectAsync()
@@ -1356,13 +1466,40 @@ namespace ModbusTerm.ViewModels
                 ConnectionStatus = ConnectionStatus.Disconnected;
                 
                 // Select the appropriate service based on mode
-                _currentService = IsMasterMode ? _masterService : _slaveService;
-                
-                // Connect using the current parameters
-                IsConnected = await _currentService.ConnectAsync(_connectionParameters);
+                if (IsListenMode)
+                {
+                    // For Listen In mode, use the listen service
+                    if (_connectionParameters is RtuConnectionParameters rtuParams)
+                    {
+                        IsConnected = await _listenService.StartListeningAsync(rtuParams);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Listen In mode is only available for RTU connections");
+                    }
+                }
+                else
+                {
+                    _currentService = IsMasterMode ? _masterService : _slaveService;
+                    IsConnected = await _currentService.ConnectAsync(_connectionParameters);
+                }
                 
                 // Update connection status based on result
-                ConnectionStatus = IsConnected ? ConnectionStatus.Connected : ConnectionStatus.Failed;
+                // In slave mode, let the slave service manage the connection status (for master connection monitoring)
+                // In other modes, set the status directly
+                if (!IsSlaveMode)
+                {
+                    ConnectionStatus = IsConnected ? ConnectionStatus.Connected : ConnectionStatus.Failed;
+                }
+                else if (IsConnected)
+                {
+                    // In slave mode, start with Connected status - the slave service will update to MasterConnected when masters connect
+                    ConnectionStatus = ConnectionStatus.Connected;
+                }
+                else
+                {
+                    ConnectionStatus = ConnectionStatus.Failed;
+                }
                 
                 // Update commands
                 ConnectCommand.RaiseCanExecuteChanged();
@@ -1392,7 +1529,11 @@ namespace ModbusTerm.ViewModels
                     // Note: StopDeviceScan only cancels the token, the scan task will finish in its own time
                 }
 
-                if (_currentService != null)
+                if (IsListenMode)
+                {
+                    await _listenService.StopListeningAsync();
+                }
+                else if (_currentService != null)
                 {
                     await _currentService.DisconnectAsync();
                 }
@@ -3707,6 +3848,79 @@ namespace ModbusTerm.ViewModels
             {
                 input.Address = currentAddress;
                 currentAddress++;
+            }
+        }
+        
+        /// <summary>
+        /// Clear all captured messages in Listen In mode
+        /// </summary>
+        private void ClearCapturedMessages()
+        {
+            try
+            {
+                _listenService.ClearCapturedMessages();
+                SelectedCapturedMessage = null;
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to clear captured messages: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Export captured messages to a file
+        /// </summary>
+        private void ExportCapturedMessages()
+        {
+            try
+            {
+                var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "CSV Files (*.csv)|*.csv|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                    DefaultExt = "csv",
+                    FileName = $"ModbusCapture_{DateTime.Now:yyyyMMdd_HHmmss}"
+                };
+                
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    string content;
+                    string fileExtension = Path.GetExtension(saveFileDialog.FileName).ToLowerInvariant();
+                    
+                    // Determine export format based on file extension
+                    if (fileExtension == ".csv")
+                    {
+                        content = _listenService.GetCapturedMessagesAsCsv();
+                    }
+                    else
+                    {
+                        // Default to text format for .txt and other extensions
+                        content = _listenService.GetCapturedMessagesAsText();
+                    }
+                    
+                    File.WriteAllText(saveFileDialog.FileName, content);
+                    OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Captured messages exported to {saveFileDialog.FileName}"));
+                }
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to export captured messages: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Copy captured messages to clipboard
+        /// </summary>
+        private void CopyCapturedMessagesToClipboard()
+        {
+            try
+            {
+                string content = _listenService.GetCapturedMessagesAsText();
+                Clipboard.SetText(content);
+                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Captured messages copied to clipboard"));
+            }
+            catch (Exception ex)
+            {
+                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to copy captured messages to clipboard: {ex.Message}"));
             }
         }
     }

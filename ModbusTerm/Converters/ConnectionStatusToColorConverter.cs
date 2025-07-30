@@ -15,14 +15,19 @@ namespace ModbusTerm.Converters
         {
             if (value is ConnectionStatus status)
             {
+                // Debug output to see what status we're converting
+
+                
                 return status switch
                 {
                     ConnectionStatus.Connected => new SolidColorBrush(Colors.LimeGreen),
+                    ConnectionStatus.MasterConnected => new SolidColorBrush(Colors.DodgerBlue),
                     ConnectionStatus.Failed => new SolidColorBrush(Colors.Red),
                     _ => new SolidColorBrush(Colors.Gray) // Disconnected or any other state
                 };
             }
             
+
             return new SolidColorBrush(Colors.Gray);
         }
 

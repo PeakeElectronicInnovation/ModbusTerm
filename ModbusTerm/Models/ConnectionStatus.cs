@@ -18,6 +18,11 @@ namespace ModbusTerm.Models
         /// <summary>
         /// Connection attempt failed
         /// </summary>
-        Failed
+        Failed,
+        
+        /// <summary>
+        /// Slave mode: Master client is connected
+        /// </summary>
+        MasterConnected
     }
 }

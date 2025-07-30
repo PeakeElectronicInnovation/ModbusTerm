@@ -156,10 +156,16 @@
                                      IsChecked="{Binding IsRtuMode, Mode=OneWay}" />
                         
                         <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <RadioButton Content="Master" IsChecked="{Binding IsMasterMode, Mode=TwoWay}" Margin="0,0,10,0" 
-                                     Checked="ModeRadioButton_Checked" Tag="Master" VerticalAlignment="Center" VerticalContentAlignment="Center" />
-                        <RadioButton Content="Slave" IsChecked="{Binding IsMasterMode, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}" Margin="0,0,10,0" 
-                                     Checked="ModeRadioButton_Checked" Tag="Slave" VerticalAlignment="Center" VerticalContentAlignment="Center" />
+                        <RadioButton Content="Master" IsChecked="{Binding IsMasterMode, Mode=OneWay}" Margin="0,0,10,0" 
+                                     Checked="ModeRadioButton_Checked" Tag="Master" VerticalAlignment="Center" VerticalContentAlignment="Center" 
+                                     GroupName="ModeGroup" />
+                        <RadioButton Content="Slave" IsChecked="{Binding IsSlaveMode, Mode=OneWay}" Margin="0,0,10,0" 
+                                     Checked="ModeRadioButton_Checked" Tag="Slave" VerticalAlignment="Center" VerticalContentAlignment="Center" 
+                                     GroupName="ModeGroup" />
+                        <RadioButton Content="Listen In" IsChecked="{Binding IsListenMode, Mode=OneWay}" Margin="0,0,10,0" 
+                                     Checked="ModeRadioButton_Checked" Tag="ListenIn" VerticalAlignment="Center" VerticalContentAlignment="Center" 
+                                     Visibility="{Binding IsRtuModeOnly, Converter={StaticResource BooleanToVisibilityConverter}}" 
+                                     GroupName="ModeGroup" />
                     </StackPanel>
                     
                     <!-- Timeout Setting -->
@@ -388,6 +394,23 @@
                                                 <Setter Property="Effect">
                                                     <Setter.Value>
                                                         <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.7" Color="#FF3333" />
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </DataTrigger>
+                                            
+                                            <!-- Master Connected: Blue LED -->
+                                            <DataTrigger Binding="{Binding ConnectionStatus}" Value="MasterConnected">
+                                                <Setter Property="Fill">
+                                                    <Setter.Value>
+                                                        <RadialGradientBrush>
+                                                            <GradientStop Offset="0" Color="#BBBBFF" /> <!-- Bright blue center -->
+                                                            <GradientStop Offset="1" Color="#0000BB" /> <!-- Dark blue edge -->
+                                                        </RadialGradientBrush>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="5" ShadowDepth="0" Opacity="0.7" Color="#3333FF" />
                                                     </Setter.Value>
                                                 </Setter>
                                             </DataTrigger>
@@ -1082,6 +1105,80 @@
                             </Grid>
                         </TabItem>
                     </TabControl>
+                </Grid>
+            </TabItem>
+            
+            <!-- Listen In Mode Tab (visible when in listen mode) -->
+            <TabItem Header="Listen In Mode" IsSelected="{Binding IsListenMode, Mode=OneWay}" Visibility="{Binding IsListenMode, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Captured Messages Display -->
+                    <GroupBox Grid.Row="0" Header="Captured Modbus Messages" Margin="5" Padding="5" Style="{StaticResource GroupBoxHeaderStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            
+                            <!-- Message Count Info -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Messages Captured: " VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding CapturedMessages.Count}" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Text=" / 20,000 (max)" VerticalAlignment="Center" Margin="0,0,20,0" />
+                                <TextBlock Text="Status: " VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ConnectionStatus}" FontWeight="Bold" VerticalAlignment="Center" />
+                            </StackPanel>
+                            
+                            <!-- Messages DataGrid -->
+                            <DataGrid Grid.Row="1" 
+                                      ItemsSource="{Binding CapturedMessages}"
+                                      SelectedItem="{Binding SelectedCapturedMessage}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="Horizontal"
+                                      HeadersVisibility="Column"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="True"
+                                      SelectionMode="Single"
+                                      AlternatingRowBackground="#F5F5F5">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Time" Binding="{Binding TimestampFormatted}" Width="80" />
+                                    <DataGridTextColumn Header="Direction" Binding="{Binding DirectionString}" Width="120" />
+                                    <DataGridTextColumn Header="Slave ID" Binding="{Binding SlaveId}" Width="70" />
+                                    <DataGridTextColumn Header="Function" Binding="{Binding FunctionCodeHex}" Width="70" />
+                                    <DataGridTextColumn Header="Data Len" Binding="{Binding DataLength}" Width="70" />
+                                    <DataGridTextColumn Header="CRC" Binding="{Binding CrcStatus}" Width="60" />
+                                    <DataGridTextColumn Header="Parsed Data" Binding="{Binding ParsedData}" Width="300" />
+                                    <DataGridTextColumn Header="Raw Data" Binding="{Binding RawDataHex}" Width="*" />
+                                </DataGrid.Columns>
+                                
+                                <!-- Auto-scroll to bottom behavior -->
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AutoScrollEventLog}" Value="True">
+                                                <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                            </DataGrid>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- Action Buttons -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5">
+                        <Button Content="Clear Messages" Width="120" Margin="0,0,10,0"
+                                Command="{Binding ClearCapturedMessagesCommand}" Style="{StaticResource StandardButtonStyle}" />
+                        <Button Content="Copy to Clipboard" Width="120" Margin="0,0,10,0"
+                                Command="{Binding CopyCapturedMessagesToClipboardCommand}" Style="{StaticResource StandardButtonStyle}" />
+                        <Button Content="Export..." Width="80" Margin="0,0,0,0"
+                                Command="{Binding ExportCapturedMessagesCommand}" Style="{StaticResource StandardButtonStyle}" />
+                    </StackPanel>
                 </Grid>
             </TabItem>
         </TabControl>
