@@ -97,6 +97,13 @@ namespace ModbusTerm.ViewModels
         // Flag to prevent infinite recursion during address updates
         private bool _isUpdatingAddresses = false;
 
+        // Continuous request properties
+        private bool _isContinuousRequestActive = false;
+        private int _continuousRequestPeriod = 1000; // Default 1 second
+        private DispatcherTimer? _continuousRequestTimer;
+        private DateTime _lastRequestTime = DateTime.MinValue;
+        private bool _waitingForResponse = false;
+
         /// <summary>
         /// Command to connect to a Modbus device
         /// </summary>
@@ -131,6 +138,16 @@ namespace ModbusTerm.ViewModels
         /// Command to export the event log
         /// </summary>
         public RelayCommand ExportEventsCommand { get; }
+
+        /// <summary>
+        /// Command to start continuous requests
+        /// </summary>
+        public RelayCommand StartContinuousCommand { get; }
+
+        /// <summary>
+        /// Command to stop continuous requests
+        /// </summary>
+        public RelayCommand StopContinuousCommand { get; }
 
         /// <summary>
         /// Command to save connection parameters
@@ -825,6 +842,35 @@ namespace ModbusTerm.ViewModels
         public ObservableCollection<CapturedModbusMessage> CapturedMessages => _listenService.CapturedMessages;
         
         /// <summary>
+        /// Gets or sets whether continuous requests are active
+        /// </summary>
+        public bool IsContinuousRequestActive
+        {
+            get => _isContinuousRequestActive;
+            set => SetProperty(ref _isContinuousRequestActive, value);
+        }
+        
+        /// <summary>
+        /// Gets or sets the continuous request period in milliseconds
+        /// </summary>
+        public int ContinuousRequestPeriod
+        {
+            get => _continuousRequestPeriod;
+            set
+            {
+                if (value < 100) value = 100; // Minimum 100ms
+                if (SetProperty(ref _continuousRequestPeriod, value))
+                {
+                    // Update timer interval if running
+                    if (_continuousRequestTimer != null && _continuousRequestTimer.IsEnabled)
+                    {
+                        _continuousRequestTimer.Interval = TimeSpan.FromMilliseconds(value);
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
         /// Gets or sets the selected captured message
         /// </summary>
         public CapturedModbusMessage? SelectedCapturedMessage
@@ -890,6 +936,8 @@ namespace ModbusTerm.ViewModels
             RemoveProfileCommand = new RelayCommand(_ => RemoveProfile(), _ => !string.IsNullOrEmpty(SelectedProfileName) && SelectedProfileName != "Default Profile");
             ScanForDevicesCommand = new RelayCommand(_ => StartDeviceScan(), _ => CanScanForDevices());
             StopDeviceScanCommand = new RelayCommand(_ => StopDeviceScan(), _ => CanStopDeviceScan());
+            StartContinuousCommand = new RelayCommand(_ => StartContinuousRequests(), _ => CanStartContinuous());
+            StopContinuousCommand = new RelayCommand(_ => StopContinuousRequests(), _ => CanStopContinuous());
             
             // Load profiles and default profile
             LoadProfilesAsync();
@@ -3923,5 +3971,126 @@ namespace ModbusTerm.ViewModels
                 OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Failed to copy captured messages to clipboard: {ex.Message}"));
             }
         }
+        
+        #region Continuous Request Methods
+        
+        /// <summary>
+        /// Determines if continuous requests can be started
+        /// </summary>
+        private bool CanStartContinuous()
+        {
+            return IsConnected && IsMasterMode && !IsContinuousRequestActive && !IsDeviceScanActive;
+        }
+        
+        /// <summary>
+        /// Determines if continuous requests can be stopped
+        /// </summary>
+        private bool CanStopContinuous()
+        {
+            return IsContinuousRequestActive;
+        }
+        
+        /// <summary>
+        /// Start continuous requests
+        /// </summary>
+        private void StartContinuousRequests()
+        {
+            try
+            {
+                if (!CanStartContinuous())
+                    return;
+                    
+                // Initialize timer if not already created
+                if (_continuousRequestTimer == null)
+                {
+                    _continuousRequestTimer = new DispatcherTimer();
+                    _continuousRequestTimer.Tick += ContinuousRequestTimer_Tick;
+                }
+                
+                // Set timer interval and start
+                _continuousRequestTimer.Interval = TimeSpan.FromMilliseconds(ContinuousRequestPeriod);
+                _continuousRequestTimer.Start();
+                
+                // Update state
+                IsContinuousRequestActive = true;
+                _waitingForResponse = false;
+                _lastRequestTime = DateTime.MinValue;
+                
+                // Send first request immediately
+                _ = SendContinuousRequestAsync();
+                
+                CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Started continuous requests with {ContinuousRequestPeriod}ms period"));
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to start continuous requests: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Stop continuous requests
+        /// </summary>
+        private void StopContinuousRequests()
+        {
+            try
+            {
+                // Stop timer
+                _continuousRequestTimer?.Stop();
+                
+                // Update state
+                IsContinuousRequestActive = false;
+                _waitingForResponse = false;
+                
+                CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Stopped continuous requests"));
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to stop continuous requests: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Timer tick event for continuous requests
+        /// </summary>
+        private void ContinuousRequestTimer_Tick(object? sender, EventArgs e)
+        {
+            // Only send request if we're not waiting for a response and enough time has passed
+            if (!_waitingForResponse)
+            {
+                var timeSinceLastRequest = DateTime.Now - _lastRequestTime;
+                if (timeSinceLastRequest.TotalMilliseconds >= ContinuousRequestPeriod)
+                {
+                    _ = SendContinuousRequestAsync();
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Send a continuous request (async version of SendRequestAsync with response tracking)
+        /// </summary>
+        private async Task SendContinuousRequestAsync()
+        {
+            if (!IsContinuousRequestActive || _waitingForResponse)
+                return;
+                
+            try
+            {
+                _waitingForResponse = true;
+                _lastRequestTime = DateTime.Now;
+                
+                // Use the existing SendRequestAsync logic
+                await SendRequestAsync();
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Continuous request failed: {ex.Message}"));
+            }
+            finally
+            {
+                _waitingForResponse = false;
+            }
+        }
+        
+        #endregion
     }
 }

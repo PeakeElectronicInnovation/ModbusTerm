@@ -458,6 +458,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -490,11 +491,40 @@
                             <TextBox Grid.Row="0" Grid.Column="5" Text="{Binding CurrentRequest.StartAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                      Margin="0,5,5,5" />
                             
-                            <!-- Quantity (only visible for read functions) -->
+                            <!-- Quantity and Data Type (only visible for read functions) -->
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Quantity:" VerticalAlignment="Center" Margin="5,12,10,5" 
                                        Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CurrentRequest.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                                      Margin="0,12,15,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Data Type:" VerticalAlignment="Center" Margin="5,12,10,5" 
+                                       Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            <ComboBox Grid.Row="1" Grid.Column="3" Width="120" ItemsSource="{Binding AvailableDataTypes}"
+                                      SelectedItem="{Binding SelectedDataType}" 
+                                      Margin="0,12,15,5" Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            
+                            <CheckBox Grid.Row="1" Grid.Column="4" Grid.ColumnSpan="2" Margin="5,12,10,5" 
+                                      IsChecked="{Binding ReverseRegisterOrder}" 
+                                      VerticalAlignment="Center"
+                                      Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                <CheckBox.Content>
+                                    <MultiBinding Converter="{StaticResource CheckboxLabelConverter}" Mode="OneWay">
+                                        <Binding Path="SelectedDataType" Mode="OneWay"/>
+                                    </MultiBinding>
+                                </CheckBox.Content>
+                                <CheckBox.ToolTip>
+                                    <MultiBinding Converter="{StaticResource CheckboxLabelConverter}" Mode="OneWay">
+                                        <Binding Path="SelectedDataType" Mode="OneWay"/>
+                                        <Binding Source="{x:Static system:Boolean.TrueString}"/>
+                                    </MultiBinding>
+                                </CheckBox.ToolTip>
+                            </CheckBox>
 
                             <!-- Dynamic write data inputs -->
                             <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="6"
@@ -660,7 +690,7 @@
                                     <!-- Send Button -->
                                     <Button Padding="8,4" 
                                             Command="{Binding SendRequestCommand}"
-                                            Content="Send" 
+                                            Content="Send Request" 
                                             Style="{StaticResource StandardButtonStyle}" 
                                             Margin="0,0,0,10" />
                                     
@@ -682,46 +712,46 @@
                                 </StackPanel>
                             </Grid>
                             
-                            <!-- Data Type for Read Functions -->
-                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="5,12,10,5"
-                                        Visibility="{Binding IsWriteFunction, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                <TextBlock Text="Data Type: " VerticalAlignment="Center" />
-                                <ComboBox Width="120" ItemsSource="{Binding AvailableDataTypes}"
-                                          SelectedItem="{Binding SelectedDataType}" 
-                                          Margin="5,0,0,0">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Converter={StaticResource ModbusDataTypeConverter}}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <CheckBox Margin="10,0,0,0" 
-                                          IsChecked="{Binding ReverseRegisterOrder}" 
-                                          VerticalAlignment="Center">
-                                    <CheckBox.Content>
-                                        <MultiBinding Converter="{StaticResource CheckboxLabelConverter}" Mode="OneWay">
-                                            <Binding Path="SelectedDataType" Mode="OneWay"/>
-                                        </MultiBinding>
-                                    </CheckBox.Content>
-                                    <CheckBox.ToolTip>
-                                        <MultiBinding Converter="{StaticResource CheckboxLabelConverter}" Mode="OneWay">
-                                            <Binding Path="SelectedDataType" Mode="OneWay"/>
-                                            <Binding Source="{x:Static system:Boolean.TrueString}"/>
-                                        </MultiBinding>
-                                    </CheckBox.ToolTip>
-                                </CheckBox>
-                                <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding SendRequestCommand}"
-                                        Content="Send" Style="{StaticResource StandardButtonStyle}" />
+                            <!-- All Buttons Row -->
+                            <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="6" Orientation="Horizontal" Margin="5,12,10,5">
+                                <!-- Send Request Button -->
+                                <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" 
+                                        CornerRadius="3" Padding="8,4" Margin="0,0,10,0">
+                                    <Button Padding="8,4" Command="{Binding SendRequestCommand}"
+                                            Content="Send Request" Style="{StaticResource StandardButtonStyle}" />
+                                </Border>
+                                
+                                <!-- Continuous Request Controls -->
+                                <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" 
+                                        CornerRadius="3" Padding="8,4" Margin="0,0,10,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Continuous →" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold" />
+                                        <TextBlock Text="Period (ms):" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <TextBox Width="80" Text="{Binding ContinuousRequestPeriod, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                 VerticalAlignment="Center" VerticalContentAlignment="Center" Padding="5,2" 
+                                                 ToolTip="Continuous request period in milliseconds (minimum 100ms)" />
+                                        <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StartContinuousCommand}"
+                                                Content="Start Continuous" Style="{StaticResource StandardButtonStyle}" 
+                                                ToolTip="Start sending continuous requests at the specified interval" />
+                                        <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopContinuousCommand}"
+                                                Content="Stop Continuous" Style="{StaticResource StandardButtonStyle}" 
+                                                ToolTip="Stop continuous requests" />
+                                    </StackPanel>
+                                </Border>
+                                
                                 <!-- RTU Device Scan Buttons -->
-                                <StackPanel Orientation="Horizontal" Margin="10,0,0,0"
-                                          Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <Button Padding="8,4" Command="{Binding ScanForDevicesCommand}"
-                                            Content="Scan for devices" Style="{StaticResource StandardButtonStyle}" 
-                                            ToolTip="Scan for Modbus devices on RTU network" />
-                                    <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopDeviceScanCommand}"
-                                            Content="Stop scan" Style="{StaticResource StandardButtonStyle}" 
-                                            ToolTip="Stop the current device scan" />
-                                </StackPanel>
+                                <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" 
+                                        CornerRadius="3" Padding="8,4" 
+                                        Visibility="{Binding IsRtuMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Padding="8,4" Command="{Binding ScanForDevicesCommand}"
+                                                Content="Scan for devices" Style="{StaticResource StandardButtonStyle}" 
+                                                ToolTip="Scan for Modbus devices on RTU network" />
+                                        <Button Margin="10,0,0,0" Padding="8,4" Command="{Binding StopDeviceScanCommand}"
+                                                Content="Stop scan" Style="{StaticResource StandardButtonStyle}" 
+                                                ToolTip="Stop the current device scan" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </GroupBox>
