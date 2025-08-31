@@ -2,11 +2,18 @@
 
 A comprehensive Modbus testing application supporting both TCP and RTU connections with master and slave device functionality. ModbusTerm provides an easy-to-use interface for testing, debugging, and simulating Modbus devices in industrial automation environments.
 
-## Version 1.2.0
+## Version 1.3.0
 
-Released on 2025-07-30 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version introduces powerful new monitoring and debugging capabilities.
+Released on 2025-08-31 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version introduces advanced data visualization and automation capabilities.
 
-### What's New in Version 1.2
+### What's New in Version 1.3
+
+- **Real-time Data Charting**: New floating chart window for visualizing Modbus data in real-time with professional axes, grid lines, and auto-scaling
+- **Continuous Request Mode**: Automated continuous polling of Modbus devices with configurable intervals for master mode operations
+- **Smart Data Filtering**: Chart automatically filters and converts data types for optimal visualization (excludes ASCII strings, converts multi-register values)
+- **Chart Controls**: Pause/resume, clear chart, and configurable maximum points with data decimation for optimal performance
+
+### Previous Version 1.2.0 Features
 
 - **Listen In Mode**: New passive monitoring mode for RTU communications - capture and analyze Modbus traffic between master and slave devices without interfering with communication
 - **Enhanced CSV Export**: Listen In data can now be exported in CSV format for analysis in Excel and other spreadsheet applications
@@ -32,6 +39,7 @@ Released on 2025-07-30 (see [Releases](https://github.com/PeakeElectronicInnovat
 - **Listen In Mode**: Passive monitoring of RTU communications between existing master/slave devices without interference
 - **Enhanced Connection Monitoring**: Real-time visual feedback for TCP slave connections with smart LED indicators
 - **Connection Profiles**: Save and load connection settings with profile management
+- **Real-time Data Charting**: Professional floating chart window with auto-scaling axes, grid lines, and support for 100,000+ data points
 - **Data Visualization**: View and interact with Modbus registers in various data formats (UInt16, Int16, UInt32, Int32, Float32, Float64)
 - **Byte Order Options**: Support for standard Modbus LSB-first order and optional MSB-first order for compatibility with different devices
 - **Real-time Monitoring**: Track communication events through an integrated event log with master connection details
@@ -83,6 +91,13 @@ Released on 2025-07-30 (see [Releases](https://github.com/PeakeElectronicInnovat
   - Write Single Register (06)
   - Write Multiple Coils (15)
   - Write Multiple Registers (16)
+- **Continuous Request Mode**: Automated polling with configurable intervals (minimum 100ms) for continuous data monitoring
+- **Real-time Data Charting**: Floating chart window with professional visualization capabilities:
+  - Auto-scaling time and value axes with grid lines and tick marks
+  - Color-coded data series with visual indicators
+  - Support for 100,000+ data points with intelligent data decimation
+  - Pause/resume and clear chart controls
+  - Smart data type conversion for optimal visualization
 - Configurable start address and quantity for read operations
 - Multiple data type display options for register values:
   - UInt16, Int16 (single register values)
@@ -142,11 +157,13 @@ Released on 2025-07-30 (see [Releases](https://github.com/PeakeElectronicInnovat
 
 1. Select your connection type (TCP or RTU)
 2. Configure appropriate connection parameters
-3. Select master or slave mode
+3. Select operation mode (Master, Slave, or Listen In)
 4. Connect to your Modbus device
-5. Send requests (master mode) or respond to incoming requests (slave mode)
-6. View response data in your preferred format
-7. Save your configuration as a named profile for future use
+5. **Master Mode**: Send requests, enable continuous polling, or open the real-time chart window
+6. **Slave Mode**: Configure registers and respond to incoming requests
+7. **Listen In Mode**: Monitor existing Modbus communications and export captured data
+8. View response data in your preferred format
+9. Save your configuration as a named profile for future use
 
 ## Tip
 
@@ -157,7 +174,9 @@ Want to test it out but don't have any modbus devices to test with? Run two inst
 - Built with .NET 9 and C#
 - Uses NModbus library for Modbus protocol implementation
 - MVVM architecture pattern
-- WPF-based user interface
+- WPF-based user interface with custom high-performance Canvas rendering
+- Custom charting solution replacing LiveCharts for optimal performance
+- Intelligent data decimation and virtualization for handling large datasets
 - Serialisable profiles for configuration persistence
 
 ## License
