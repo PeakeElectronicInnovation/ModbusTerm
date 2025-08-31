@@ -7,8 +7,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -100,9 +104,12 @@ namespace ModbusTerm.ViewModels
         // Continuous request properties
         private bool _isContinuousRequestActive = false;
         private int _continuousRequestPeriod = 1000; // Default 1 second
-        private DispatcherTimer? _continuousRequestTimer;
-        private DateTime _lastRequestTime = DateTime.MinValue;
-        private bool _waitingForResponse = false;
+        private CancellationTokenSource? _continuousRequestCts;
+        private Task? _continuousRequestTask;
+
+        // Chart properties
+        private ChartWindow? _chartWindow;
+        private bool _isChartWindowOpen = false;
 
         /// <summary>
         /// Command to connect to a Modbus device
@@ -148,6 +155,11 @@ namespace ModbusTerm.ViewModels
         /// Command to stop continuous requests
         /// </summary>
         public RelayCommand StopContinuousCommand { get; }
+
+        /// <summary>
+        /// Command to open the chart window
+        /// </summary>
+        public RelayCommand OpenChartCommand { get; }
 
         /// <summary>
         /// Command to save connection parameters
@@ -578,18 +590,20 @@ namespace ModbusTerm.ViewModels
 
                     // Update available data types when the function changes
                     UpdateAvailableDataTypes();
-
-                    // Update write data inputs
+                    
+                    // Update write data inputs when switching functions
                     UpdateWriteDataInputs();
-
+                    
+                    // Clear chart when request parameters change
+                    ClearChartOnSettingsChange();
+                    
                     // Update write data items address calculations
                     UpdateWriteDataItemAddresses();
 
                     // Notify property changes
                     OnPropertyChanged(nameof(IsWriteFunction));
-                    // Only notify about valid properties
-                    // OnPropertyChanged(nameof(IsMultipleWriteFunction));
-                    // OnPropertyChanged(nameof(IsReadFunction));
+                    OnPropertyChanged(nameof(IsMultipleWriteFunction));
+                    OnPropertyChanged(nameof(IsReadFunction));
                 }
             }
         }
@@ -625,6 +639,9 @@ namespace ModbusTerm.ViewModels
                     {
                         ReformatResponseData(value.Data);
                     }
+
+                    // Send data to chart if available
+                    SendDataToChart(value);
 
                     // Notify UI that HasLastResponse has changed
                     OnPropertyChanged(nameof(HasLastResponse));
@@ -671,6 +688,9 @@ namespace ModbusTerm.ViewModels
                     {
                         UpdateWriteDataInputs();
                     }
+                    
+                    // Clear chart when data type changes
+                    ClearChartOnSettingsChange();
                 }
             }
         }
@@ -698,6 +718,11 @@ namespace ModbusTerm.ViewModels
         /// Gets whether the current function is a write function
         /// </summary>
         public bool IsWriteFunction => CurrentRequest?.IsWriteFunction ?? false;
+        
+        /// <summary>
+        /// Gets whether the current function is a read function
+        /// </summary>
+        public bool IsReadFunction => !IsWriteFunction;
         
         /// <summary>
         /// Gets whether a device scan is currently active
@@ -861,10 +886,11 @@ namespace ModbusTerm.ViewModels
                 if (value < 100) value = 100; // Minimum 100ms
                 if (SetProperty(ref _continuousRequestPeriod, value))
                 {
-                    // Update timer interval if running
-                    if (_continuousRequestTimer != null && _continuousRequestTimer.IsEnabled)
+                    // If continuous requests are active, restart with new period
+                    if (IsContinuousRequestActive)
                     {
-                        _continuousRequestTimer.Interval = TimeSpan.FromMilliseconds(value);
+                        StopContinuousRequests();
+                        StartContinuousRequests();
                     }
                 }
             }
@@ -938,6 +964,7 @@ namespace ModbusTerm.ViewModels
             StopDeviceScanCommand = new RelayCommand(_ => StopDeviceScan(), _ => CanStopDeviceScan());
             StartContinuousCommand = new RelayCommand(_ => StartContinuousRequests(), _ => CanStartContinuous());
             StopContinuousCommand = new RelayCommand(_ => StopContinuousRequests(), _ => CanStopContinuous());
+            OpenChartCommand = new RelayCommand(_ => OpenChartWindow(), _ => IsMasterMode);
             
             // Load profiles and default profile
             LoadProfilesAsync();
@@ -1546,7 +1573,7 @@ namespace ModbusTerm.ViewModels
                 }
                 else
                 {
-                    ConnectionStatus = ConnectionStatus.Failed;
+                    ConnectionStatus = ConnectionStatus.Disconnected;
                 }
                 
                 // Update commands
@@ -1590,6 +1617,12 @@ namespace ModbusTerm.ViewModels
 
                 // Update connection status
                 ConnectionStatus = ConnectionStatus.Disconnected;
+
+                // Stop continuous requests if active
+                if (IsContinuousRequestActive)
+                {
+                    StopContinuousRequests();
+                }
 
                 // Update commands
                 ConnectCommand.RaiseCanExecuteChanged();
@@ -1860,59 +1893,78 @@ namespace ModbusTerm.ViewModels
                 {
                     try
                     {
-                        await masterService.ScanForDevicesAsync(_deviceScanCts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        Application.Current.Dispatcher.Invoke(() => 
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Device scan cancelled")));
+                        // Scan slave IDs from 1 to 247
+                        for (byte slaveId = 1; slaveId <= 247; slaveId++)
+                        {
+                            if (_deviceScanCts.Token.IsCancellationRequested)
+                                break;
+
+                            try
+                            {
+                                // Try to read a single holding register from address 0
+                                var parameters = new ReadFunctionParameters
+                                {
+                                    SlaveId = slaveId,
+                                    FunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
+                                    StartAddress = 0,
+                                    Quantity = 1
+                                };
+                                
+                                var response = await masterService.ExecuteRequestAsync(parameters);
+                                
+                                if (response is ushort[] registers && registers.Length > 0)
+                                {
+                                    // Device responded - add to results
+                                    var deviceInfo = new DeviceScanResult
+                                    {
+                                        SlaveId = slaveId,
+                                        Responded = true,
+                                        ResponseStatus = Models.ResponseStatus.Success,
+                                        ResponseTime = 0, // Will be set by the service
+                                        Timestamp = DateTime.Now
+                                    };
+                                    
+                                    _deviceScanResults.Add(deviceInfo);
+                                    
+                                    // Update UI on main thread
+                                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                    {
+                                        ResponseItems.Add(new ModbusResponseItem
+                                        {
+                                            Address = slaveId,
+                                            Value = "Responding"
+                                        });
+                                        
+                                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Found device at slave ID {slaveId}"));
+                                    });
+                                }
+                            }
+                            catch
+                            {
+                                // Device didn't respond - continue scanning
+                            }
+                            
+                            // Small delay between requests
+                            await Task.Delay(50, _deviceScanCts.Token);
+                        }
+                        
+                        // Update UI when scan completes
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            IsDeviceScanActive = false;
+                            ResponseStatus = $"Device scan completed. Found {_deviceScanResults.Count} responding devices.";
+                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Device scan completed. Found {_deviceScanResults.Count} responding devices."));
+                            
+                            // Update UI to show the response items
+                            OnPropertyChanged(nameof(HasLastResponse));
+                        });
                     }
                     catch (Exception ex)
                     {
-                        Application.Current.Dispatcher.Invoke(() => 
-                            OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Device scan error: {ex.Message}")));
-                    }
-                    finally
-                    {
-                        // Reset scan state
-                        IsDeviceScanActive = false;
-                        _deviceScanCts = null;
-                        
-                        // Update UI and command states
-                        Application.Current.Dispatcher.Invoke(() =>
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            ScanForDevicesCommand.RaiseCanExecuteChanged();
-                            StopDeviceScanCommand.RaiseCanExecuteChanged();
-                            
-                            // Show summary of found devices
-                            var respondingDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Success);
-                            var errorDevices = _deviceScanResults.Count(r => r.ResponseStatus == Models.ResponseStatus.Exception);
-                            var timeoutDevices = _deviceScanResults.Count - respondingDevices - errorDevices;
-                            var scanSummary = $"Scan complete: {respondingDevices} device(s) responded successfully, {errorDevices} with exceptions, {timeoutDevices} timed out";
-                            
-                            // Update both the event log and response panel
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent(scanSummary));
-                            ResponseStatus = scanSummary;
-                            
-                            // At this point we've already been adding scan results to the response items
-                            // Just refresh the UI and sort the results by slave ID
-                            if (ResponseItems.Count > 0)
-                            {
-                                // Make a copy of the current items
-                                var sortedItems = ResponseItems.OrderBy(i => i.Address).ToList();
-                                
-                                // Clear and repopulate in sorted order
-                                ResponseItems.Clear();
-                                foreach (var item in sortedItems)
-                                {
-                                    ResponseItems.Add(item);
-                                }
-                                
-                                // Refresh UI
-                                OnPropertyChanged(nameof(HasLastResponse));
-                            }
-                            // Update UI to show the response items
-                            OnPropertyChanged(nameof(HasLastResponse));
+                            IsDeviceScanActive = false;
+                            OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Device scan failed: {ex.Message}"));
                         });
                     }
                 });
@@ -1929,27 +1981,24 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
-        /// Stops an active device scan
+        /// Stops an ongoing device scan
         /// </summary>
         private void StopDeviceScan()
         {
-            if (!IsDeviceScanActive || _deviceScanCts == null)
+            if (_deviceScanCts != null)
             {
-                return;
-            }
-
-            try
-            {
-                // Cancel the scan operation
                 _deviceScanCts.Cancel();
-                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Stopping device scan..."));
-                
-                // Command states will be updated when the scan task completes in the finally block
+                _deviceScanCts.Dispose();
+                _deviceScanCts = null;
             }
-            catch (Exception ex)
-            {
-                OnCommunicationEvent(this, CommunicationEvent.CreateErrorEvent($"Error stopping device scan: {ex.Message}"));
-            }
+            
+            IsDeviceScanActive = false;
+            
+            // Refresh command states
+            ScanForDevicesCommand.RaiseCanExecuteChanged();
+            StopDeviceScanCommand.RaiseCanExecuteChanged();
+            
+            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Device scan stopped"));
         }
         
         /// <summary>
@@ -1957,7 +2006,7 @@ namespace ModbusTerm.ViewModels
         /// </summary>
         private void OnDeviceScanResultReceived(object? sender, DeviceScanResult result)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 // Add to collection
                 _deviceScanResults.Add(result);
@@ -2465,7 +2514,7 @@ namespace ModbusTerm.ViewModels
             try
             {
                 // Create an open file dialog
-                var dialog = new OpenFileDialog
+                var dialog = new Microsoft.Win32.OpenFileDialog
                 {
                     Filter = "Register Files (*.json)|*.json|All Files (*.*)|*.*",
                     Title = "Import Register Configurations",
@@ -2541,7 +2590,7 @@ namespace ModbusTerm.ViewModels
             try
             {
                 // Create save file dialog
-                var dialog = new SaveFileDialog
+                var dialog = new Microsoft.Win32.SaveFileDialog
                 {
                     Filter = "Register Files (*.json)|*.json|All Files (*.*)|*.*",
                     Title = "Export Register Configurations",
@@ -3922,7 +3971,7 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                var saveFileDialog = new SaveFileDialog
+                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
                 {
                     Filter = "CSV Files (*.csv)|*.csv|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
                     DefaultExt = "csv",
@@ -3962,8 +4011,8 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                string content = _listenService.GetCapturedMessagesAsText();
-                Clipboard.SetText(content);
+                string csvContent = _listenService.GetCapturedMessagesAsCsv();
+                System.Windows.Clipboard.SetText(csvContent);
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Captured messages copied to clipboard"));
             }
             catch (Exception ex)
@@ -4000,24 +4049,17 @@ namespace ModbusTerm.ViewModels
                 if (!CanStartContinuous())
                     return;
                     
-                // Initialize timer if not already created
-                if (_continuousRequestTimer == null)
-                {
-                    _continuousRequestTimer = new DispatcherTimer();
-                    _continuousRequestTimer.Tick += ContinuousRequestTimer_Tick;
-                }
+                // Stop any existing continuous requests
+                StopContinuousRequests();
                 
-                // Set timer interval and start
-                _continuousRequestTimer.Interval = TimeSpan.FromMilliseconds(ContinuousRequestPeriod);
-                _continuousRequestTimer.Start();
+                // Create cancellation token
+                _continuousRequestCts = new CancellationTokenSource();
                 
                 // Update state
                 IsContinuousRequestActive = true;
-                _waitingForResponse = false;
-                _lastRequestTime = DateTime.MinValue;
                 
-                // Send first request immediately
-                _ = SendContinuousRequestAsync();
+                // Start background task for continuous requests
+                _continuousRequestTask = Task.Run(async () => await ContinuousRequestLoop(_continuousRequestCts.Token));
                 
                 CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent($"Started continuous requests with {ContinuousRequestPeriod}ms period"));
             }
@@ -4034,12 +4076,29 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                // Stop timer
-                _continuousRequestTimer?.Stop();
-                
-                // Update state
+                // Update state first
                 IsContinuousRequestActive = false;
-                _waitingForResponse = false;
+                
+                // Cancel the background task
+                _continuousRequestCts?.Cancel();
+                
+                // Wait for task to complete (with timeout)
+                if (_continuousRequestTask != null)
+                {
+                    try
+                    {
+                        _continuousRequestTask.Wait(TimeSpan.FromSeconds(2));
+                    }
+                    catch (AggregateException)
+                    {
+                        // Task was cancelled, which is expected
+                    }
+                }
+                
+                // Clean up resources
+                _continuousRequestCts?.Dispose();
+                _continuousRequestCts = null;
+                _continuousRequestTask = null;
                 
                 CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Stopped continuous requests"));
             }
@@ -4050,44 +4109,134 @@ namespace ModbusTerm.ViewModels
         }
         
         /// <summary>
-        /// Timer tick event for continuous requests
+        /// Background loop for continuous requests with precise timing
         /// </summary>
-        private void ContinuousRequestTimer_Tick(object? sender, EventArgs e)
+        private async Task ContinuousRequestLoop(CancellationToken cancellationToken)
         {
-            // Only send request if we're not waiting for a response and enough time has passed
-            if (!_waitingForResponse)
+            try
             {
-                var timeSinceLastRequest = DateTime.Now - _lastRequestTime;
-                if (timeSinceLastRequest.TotalMilliseconds >= ContinuousRequestPeriod)
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                long nextRequestTicks = 0;
+                
+                while (!cancellationToken.IsCancellationRequested && IsContinuousRequestActive)
                 {
-                    _ = SendContinuousRequestAsync();
+                    try
+                    {
+                        // Check if it's time for the next request
+                        if (stopwatch.ElapsedMilliseconds >= nextRequestTicks)
+                        {
+                            // Schedule next request time BEFORE sending to prevent drift
+                            nextRequestTicks += ContinuousRequestPeriod;
+                            
+                            // Send request on UI thread to maintain proper context
+                            await App.Current.Dispatcher.InvokeAsync(async () =>
+                            {
+                                try
+                                {
+                                    await SendRequestAsync();
+                                }
+                                catch (Exception ex)
+                                {
+                                    CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Continuous request failed: {ex.Message}"));
+                                }
+                            });
+                        }
+                        
+                        // Small delay to prevent excessive CPU usage
+                        await Task.Delay(1, cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation is requested
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Dispatch to UI thread for event logging
+                App.Current.Dispatcher.Invoke(() =>
+                {
+                    CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Continuous request loop failed: {ex.Message}"));
+                });
+            }
+        }
+        
+        #endregion
+        
+        #region Chart Management
+        
+        /// <summary>
+        /// Gets whether the chart window is open
+        /// </summary>
+        public bool IsChartWindowOpen
+        {
+            get => _isChartWindowOpen;
+            set => SetProperty(ref _isChartWindowOpen, value);
+        }
+        
+        /// <summary>
+        /// Open the chart window
+        /// </summary>
+        private void OpenChartWindow()
+        {
+            try
+            {
+                if (_chartWindow == null || !_chartWindow.IsLoaded)
+                {
+                    _chartWindow = new ChartWindow(System.Windows.Application.Current.MainWindow);
+                    _chartWindow.Owner = System.Windows.Application.Current.MainWindow;
+                    _chartWindow.Closed += ChartWindow_Closed;
+                    
+                    IsChartWindowOpen = true;
+                    _chartWindow.Show();
+                    
+                    CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Chart window opened"));
+                }
+                else
+                {
+                    _chartWindow.Activate();
+                }
+            }
+            catch (Exception ex)
+            {
+                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Failed to open chart window: {ex.Message}"));
+            }
+        }
+        
+        /// <summary>
+        /// Handle chart window closed event
+        /// </summary>
+        private void ChartWindow_Closed(object? sender, EventArgs e)
+        {
+            IsChartWindowOpen = false;
+            _chartWindow = null;
+            CommunicationEvents.Add(CommunicationEvent.CreateInfoEvent("Chart window closed"));
+        }
+        
+        /// <summary>
+        /// Send data to chart if window is open and data type is chartable
+        /// </summary>
+        private void SendDataToChart(ModbusResponseInfo? response)
+        {
+            if (_chartWindow != null && IsChartWindowOpen && response != null)
+            {
+                // Only send data for chartable types
+                if (ChartWindow.IsChartableDataType(SelectedDataType))
+                {
+                    _chartWindow.AddDataPoints(response, SelectedDataType, ReverseRegisterOrder, CurrentRequest.StartAddress);
                 }
             }
         }
         
         /// <summary>
-        /// Send a continuous request (async version of SendRequestAsync with response tracking)
+        /// Clear chart when request builder settings change
         /// </summary>
-        private async Task SendContinuousRequestAsync()
+        private void ClearChartOnSettingsChange()
         {
-            if (!IsContinuousRequestActive || _waitingForResponse)
-                return;
-                
-            try
+            if (_chartWindow != null && IsChartWindowOpen)
             {
-                _waitingForResponse = true;
-                _lastRequestTime = DateTime.Now;
-                
-                // Use the existing SendRequestAsync logic
-                await SendRequestAsync();
-            }
-            catch (Exception ex)
-            {
-                CommunicationEvents.Add(CommunicationEvent.CreateErrorEvent($"Continuous request failed: {ex.Message}"));
-            }
-            finally
-            {
-                _waitingForResponse = false;
+                _chartWindow.ClearChart();
             }
         }
         

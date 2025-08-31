@@ -63,7 +63,7 @@ public partial class MainWindow : Window
         if (TcpParametersPanel == null || RtuParametersPanel == null)
             return;
             
-        if (sender is RadioButton radioButton)
+        if (sender is System.Windows.Controls.RadioButton radioButton)
         {
             try
             {
@@ -109,7 +109,7 @@ public partial class MainWindow : Window
         if (_viewModel == null)
             return;
             
-        if (sender is RadioButton radioButton)
+        if (sender is System.Windows.Controls.RadioButton radioButton)
         {
             // Get the mode from the radio button tag
             var mode = radioButton.Tag?.ToString() ?? string.Empty;
@@ -171,7 +171,7 @@ public partial class MainWindow : Window
         if (_viewModel == null || FunctionCodeComboBox == null || FunctionCodeComboBox.SelectedItem == null)
             return;
             
-        if (FunctionCodeComboBox.SelectedItem is ComboBoxItem selectedItem && selectedItem.Tag != null)
+        if (FunctionCodeComboBox.SelectedItem is System.Windows.Controls.ComboBoxItem selectedItem && selectedItem.Tag != null)
         {
             // Get the function code from the selected item's tag
             if (int.TryParse(selectedItem.Tag.ToString(), out int functionCode))
@@ -318,7 +318,7 @@ public partial class MainWindow : Window
                     // Find the connection type radio buttons by iterating through the children
                     foreach (UIElement element in ConnectionTypePanel.Children)
                     {
-                        if (element is RadioButton radioButton && radioButton.Tag != null)
+                        if (element is System.Windows.Controls.RadioButton radioButton && radioButton.Tag != null)
                         {
                             string buttonType = radioButton.Tag?.ToString() ?? string.Empty;
                             
@@ -367,7 +367,7 @@ public partial class MainWindow : Window
         // Debug logging
         System.Diagnostics.Debug.WriteLine($"BaudRateComboBox_SelectionChanged event fired");
         
-        if (_viewModel == null || !(sender is ComboBox))
+        if (_viewModel == null || !(sender is System.Windows.Controls.ComboBox))
             return;
             
         // Check if we have RTU connection parameters
@@ -400,7 +400,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void CheckBox_Checked(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
+        if (sender is System.Windows.Controls.CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
         {
             item.BooleanValue = true;
         }
@@ -411,7 +411,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void CheckBox_Unchecked(object sender, RoutedEventArgs e)
     {
-        if (sender is CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
+        if (sender is System.Windows.Controls.CheckBox checkBox && checkBox.DataContext is WriteDataItemViewModel item)
         {
             item.BooleanValue = false;
         }

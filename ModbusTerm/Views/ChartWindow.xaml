@@ -1,0 +1,164 @@
+<Window x:Class="ModbusTerm.Views.ChartWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Modbus Data Chart" Height="768" Width="1024"
+        WindowStartupLocation="Manual"
+        Left="100" Top="100"
+        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+    
+    <Window.Resources>
+        <!-- Canvas Style -->
+        <Style x:Key="ChartCanvasStyle" TargetType="Canvas">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+        
+        <!-- Standard Button Style (matching main app) -->
+        <Style x:Key="StandardButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" />
+                                <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <!-- Basic Chart Controls -->
+        <Border Grid.Row="0" Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
+                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                BorderThickness="0,0,0,1" Padding="10,5">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Chart Controls:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,15,0" />
+                <Button Content="Clear Chart" Margin="0,0,10,0" Click="ClearChart_Click" Style="{StaticResource StandardButtonStyle}" />
+                <Button Content="Pause" Margin="0,0,10,0" Click="PauseResume_Click" Style="{StaticResource StandardButtonStyle}" />
+                <Button Content="Hide Settings" Margin="0,0,10,0" Click="ToggleNamesPanel_Click" Style="{StaticResource StandardButtonStyle}"
+                        ToolTip="Show/hide chart settings panel" MinWidth="80" />
+            </StackPanel>
+        </Border>
+        
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="NamesColumn" Width="320" />
+            </Grid.ColumnDefinitions>
+            
+            <!-- Chart Area -->
+            <Border Grid.Column="0" Margin="10" BorderBrush="Gray" BorderThickness="1">
+                <Canvas x:Name="ChartCanvas" Style="{StaticResource ChartCanvasStyle}" 
+                        MouseMove="ChartCanvas_MouseMove" 
+                        MouseLeave="ChartCanvas_MouseLeave"
+                        MouseDown="ChartCanvas_MouseDown"
+                        MouseUp="ChartCanvas_MouseUp"
+                        MouseWheel="ChartCanvas_MouseWheel" />
+            </Border>
+            
+            <!-- Chart Settings Panel -->
+            <Border x:Name="NamesPanel" Grid.Column="1" Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
+                    BorderThickness="1,0,0,0" Padding="10">
+                <StackPanel>
+                    <TextBlock Text="Chart Settings" FontWeight="Bold" FontSize="12" Margin="0,0,0,10" HorizontalAlignment="Center" />
+                    
+                    
+                    <!-- Chart Settings -->
+                    <GroupBox Header="Settings" Margin="0,0,0,10">
+                        <StackPanel>
+                            <Grid Margin="0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Max Points:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox Grid.Column="1" x:Name="MaxPointsTextBox" Text="100000" VerticalAlignment="Center" 
+                                         VerticalContentAlignment="Center" TextChanged="MaxPoints_TextChanged" />
+                            </Grid>
+                            <Grid Margin="0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Time Scale (min):" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                <TextBox Grid.Column="1" x:Name="TimeScaleTextBox" Text="10" VerticalAlignment="Center" 
+                                         VerticalContentAlignment="Center" TextChanged="TimeScale_TextChanged" />
+                            </Grid>
+                            <CheckBox x:Name="AutoScaleCheckBox" Content="Auto Scale" IsChecked="True" 
+                                      Margin="0,5" Checked="AutoScale_CheckedChanged" Unchecked="AutoScale_CheckedChanged" />
+                            <CheckBox x:Name="RealTimeCheckBox" Content="Real Time" IsChecked="True" 
+                                      Margin="0,5" Checked="RealTime_CheckedChanged" Unchecked="RealTime_CheckedChanged" />
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- Series List -->
+                    <GroupBox Header="Series">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="30" />
+                                    <ColumnDefinition Width="25" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="80" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Show" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="Color" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="Address" FontWeight="Bold" FontSize="10" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="Name" FontWeight="Bold" FontSize="10" HorizontalAlignment="Left" Margin="5,0,0,0" />
+                                <TextBlock Grid.Column="4" Text="Latest Value" FontWeight="Bold" FontSize="10" HorizontalAlignment="Left" Margin="5,0,0,0" />
+                            </Grid>
+                            <ScrollViewer x:Name="SeriesNamesScrollViewer" VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="SeriesNamesPanel" />
+                            </ScrollViewer>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" 
+                BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" 
+                BorderThickness="0,1,0,0" Padding="10,5">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center" />
+                <TextBlock Text=" | Points: " VerticalAlignment="Center" Margin="10,0,0,0" />
+                <TextBlock x:Name="PointCountText" Text="0" VerticalAlignment="Center" />
+                <TextBlock Text=" | Data Type: " VerticalAlignment="Center" Margin="10,0,0,0" />
+                <TextBlock x:Name="DataTypeText" Text="-" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

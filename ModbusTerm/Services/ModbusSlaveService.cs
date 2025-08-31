@@ -27,7 +27,7 @@ namespace ModbusTerm.Services
         private bool _isMaster = false;
         private byte _slaveId = 1;
         private readonly HashSet<string> _connectedClients = new HashSet<string>();
-        private Timer? _connectionMonitorTimer;
+        private System.Threading.Timer? _connectionMonitorTimer;
 
         /// <summary>
         /// Gets or sets the Modbus Slave ID
@@ -958,7 +958,7 @@ namespace ModbusTerm.Services
         private void StartConnectionMonitoring(int port)
         {
             // Start a timer to periodically check for connected clients
-            _connectionMonitorTimer = new Timer(CheckTcpConnections, port, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+            _connectionMonitorTimer = new System.Threading.Timer(CheckTcpConnections, port, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
         }
 
         /// <summary>

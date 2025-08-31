@@ -15,7 +15,7 @@ namespace ModbusTerm.Services
     public class ModbusListenService : IDisposable
     {
         private readonly ConcurrentQueue<byte> _dataBuffer = new();
-        private readonly Timer _frameTimer;
+        private readonly System.Threading.Timer _frameTimer;
         private readonly Dispatcher _dispatcher;
         private readonly object _lockObject = new();
         private bool _isListening = false;
@@ -47,7 +47,7 @@ namespace ModbusTerm.Services
         public ModbusListenService()
         {
             _dispatcher = Dispatcher.CurrentDispatcher;
-            _frameTimer = new Timer(ProcessFrame, null, Timeout.Infinite, Timeout.Infinite);
+            _frameTimer = new System.Threading.Timer(ProcessFrame, null, Timeout.Infinite, Timeout.Infinite);
         }
 
         /// <summary>

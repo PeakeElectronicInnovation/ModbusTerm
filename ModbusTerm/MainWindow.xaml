@@ -752,6 +752,14 @@
                                                 ToolTip="Stop the current device scan" />
                                     </StackPanel>
                                 </Border>
+                                
+                                <!-- Chart Button -->
+                                <Border BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}" BorderThickness="1" 
+                                        CornerRadius="3" Padding="8,4">
+                                    <Button Padding="8,4" Command="{Binding OpenChartCommand}"
+                                            Content="Open Chart" Style="{StaticResource StandardButtonStyle}"
+                                            ToolTip="Open real-time data chart window" />
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </GroupBox>
