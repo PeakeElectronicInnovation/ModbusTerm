@@ -600,10 +600,11 @@ namespace ModbusTerm.ViewModels
                     // Update write data items address calculations
                     UpdateWriteDataItemAddresses();
 
-                    // Notify property changes
-                    OnPropertyChanged(nameof(IsWriteFunction));
+                    // Notify UI
+                    OnPropertyChanged(nameof(WriteDataInputs));
                     OnPropertyChanged(nameof(IsMultipleWriteFunction));
-                    OnPropertyChanged(nameof(IsReadFunction));
+                    OnPropertyChanged(nameof(IsMultipleCoilsFunction));
+                    OnPropertyChanged(nameof(IsWriteFunction));
                 }
             }
         }
@@ -783,6 +784,11 @@ namespace ModbusTerm.ViewModels
         /// Gets whether the current function is a multiple write function (WriteMultipleCoils or WriteMultipleRegisters)
         /// </summary>
         public bool IsMultipleWriteFunction => CurrentRequest?.FunctionCode == ModbusFunctionCode.WriteMultipleCoils || CurrentRequest?.FunctionCode == ModbusFunctionCode.WriteMultipleRegisters;
+
+        /// <summary>
+        /// Gets whether the current function is specifically for coils (WriteMultipleCoils)
+        /// </summary>
+        public bool IsMultipleCoilsFunction => CurrentRequest?.FunctionCode == ModbusFunctionCode.WriteMultipleCoils;
 
         /// <summary>
         /// Collection of input fields for write operations
@@ -2962,16 +2968,7 @@ namespace ModbusTerm.ViewModels
                     }
 
                     // Update available data types, addresses, and calculate quantity
-                    UpdateAvailableWriteDataTypes();
-                    UpdateWriteDataItemAddresses();
-                    CalculateWriteQuantity();
                 }
-
-                // Notify UI
-                OnPropertyChanged(nameof(WriteDataInputs));
-                OnPropertyChanged(nameof(IsMultipleWriteFunction));
-                OnPropertyChanged(nameof(IsWriteFunction));
-                CommandManager.InvalidateRequerySuggested();
             }
             catch (Exception ex)
             {

@@ -205,11 +205,42 @@ public partial class MainWindow : Window
                         
                     case 15: // Write Multiple Coils
                         _viewModel.CreateWriteMultipleCoilsRequest();
+                        UpdateWriteDataGridColumns(true); // Show coil columns
                         break;
                         
                     case 16: // Write Multiple Registers
                         _viewModel.CreateWriteMultipleRegistersRequest();
+                        UpdateWriteDataGridColumns(false); // Show register columns
                         break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates the WriteDataItemsDataGrid columns based on function type
+    /// </summary>
+    private void UpdateWriteDataGridColumns(bool isCoilFunction)
+    {
+        if (WriteDataItemsDataGrid?.Columns != null)
+        {
+            // Find the columns by name
+            var registerColumn = WriteDataItemsDataGrid.Columns.FirstOrDefault(c => c is System.Windows.Controls.DataGridTextColumn && ((System.Windows.Controls.DataGridTextColumn)c).Header?.ToString() == "Value");
+            var coilColumn = WriteDataItemsDataGrid.Columns.FirstOrDefault(c => c is System.Windows.Controls.DataGridTemplateColumn && ((System.Windows.Controls.DataGridTemplateColumn)c).Header?.ToString() == "Value");
+
+            if (registerColumn != null && coilColumn != null)
+            {
+                if (isCoilFunction)
+                {
+                    // Show coil column, hide register column
+                    registerColumn.Visibility = Visibility.Collapsed;
+                    coilColumn.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    // Show register column, hide coil column
+                    registerColumn.Visibility = Visibility.Visible;
+                    coilColumn.Visibility = Visibility.Collapsed;
                 }
             }
         }
@@ -415,5 +446,82 @@ public partial class MainWindow : Window
         {
             item.BooleanValue = false;
         }
+    }
+
+    /// <summary>
+    /// Event handler for register value TextBox KeyDown - enables Enter key navigation
+    /// </summary>
+    private void RegisterValue_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter && sender is System.Windows.Controls.TextBox textBox)
+        {
+            // Move focus to the next row in the same column
+            var dataGrid = FindVisualParent<System.Windows.Controls.DataGrid>(textBox);
+            if (dataGrid != null)
+            {
+                var currentRow = dataGrid.ItemContainerGenerator.ContainerFromItem(textBox.DataContext) as System.Windows.Controls.DataGridRow;
+                if (currentRow != null)
+                {
+                    var currentIndex = dataGrid.Items.IndexOf(textBox.DataContext);
+                    if (currentIndex >= 0 && currentIndex < dataGrid.Items.Count - 1)
+                    {
+                        // Move to next row
+                        var nextItem = dataGrid.Items[currentIndex + 1];
+                        dataGrid.SelectedItem = nextItem;
+                        dataGrid.ScrollIntoView(nextItem);
+                        
+                        // Focus the value cell in the next row
+                        dataGrid.UpdateLayout();
+                        var nextRow = dataGrid.ItemContainerGenerator.ContainerFromItem(nextItem) as System.Windows.Controls.DataGridRow;
+                        if (nextRow != null)
+                        {
+                            // Find the value column (index 1)
+                            var valueCell = GetCell(dataGrid, nextRow, 1);
+                            if (valueCell != null)
+                            {
+                                valueCell.Focus();
+                                dataGrid.BeginEdit();
+                            }
+                        }
+                    }
+                }
+            }
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Helper method to find a visual parent of a specific type
+    /// </summary>
+    private T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+    {
+        var parentObject = VisualTreeHelper.GetParent(child);
+        if (parentObject == null) return null;
+        
+        if (parentObject is T parent)
+            return parent;
+        
+        return FindVisualParent<T>(parentObject);
+    }
+
+    /// <summary>
+    /// Helper method to get a specific cell from a DataGrid row
+    /// </summary>
+    private System.Windows.Controls.DataGridCell? GetCell(System.Windows.Controls.DataGrid dataGrid, System.Windows.Controls.DataGridRow row, int columnIndex)
+    {
+        if (row == null) return null;
+        
+        var presenter = FindVisualChild<System.Windows.Controls.Primitives.DataGridCellsPresenter>(row);
+        if (presenter == null) return null;
+        
+        var cell = presenter.ItemContainerGenerator.ContainerFromIndex(columnIndex) as System.Windows.Controls.DataGridCell;
+        if (cell == null)
+        {
+            // May need to virtualize
+            dataGrid.ScrollIntoView(row, dataGrid.Columns[columnIndex]);
+            cell = presenter.ItemContainerGenerator.ContainerFromIndex(columnIndex) as System.Windows.Controls.DataGridCell;
+        }
+        
+        return cell;
     }
 }

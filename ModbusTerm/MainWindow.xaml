@@ -547,6 +547,7 @@
                                                AutoGenerateColumns="False"
                                                CanUserAddRows="False"
                                                CanUserDeleteRows="False"
+                                               CanUserSortColumns="False"
                                                HeadersVisibility="Column"
                                                GridLinesVisibility="All"
                                                BorderThickness="0"
@@ -559,7 +560,9 @@
                                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                                Height="170"
                                                RowHeight="20"
-                                               Margin="0,0,0,0">
+                                               Margin="0,0,0,0"
+                                               Style="{StaticResource ModernDataGridStyle}"
+                                               RowStyle="{StaticResource CustomDataGridRowStyle}">
                                     <!-- Add right-click context menu for row removal -->
                                     <DataGrid.ContextMenu>
                                         <ContextMenu>
@@ -587,7 +590,8 @@
                                         <DataGridTextColumn Header="Address" 
                                                           Binding="{Binding Address}" 
                                                           Width="65"
-                                                          IsReadOnly="True">
+                                                          IsReadOnly="True"
+                                                          CanUserSort="False">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="VerticalAlignment" Value="Center" />
@@ -596,30 +600,37 @@
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
 
-                                        <!-- Value Column -->
-                                        <DataGridTemplateColumn Header="Value" Width="150">
+                                        <!-- Value Column for Register Values (FC16) -->
+                                        <DataGridTextColumn Header="Value" 
+                                                          Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                          Width="150"
+                                                          x:Name="RegisterValueColumn">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                                    <Setter Property="Padding" Value="5,0" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                            <DataGridTextColumn.EditingElementStyle>
+                                                <Style TargetType="TextBox">
+                                                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                                                    <Setter Property="Padding" Value="5,0" />
+                                                    <EventSetter Event="KeyDown" Handler="RegisterValue_KeyDown" />
+                                                </Style>
+                                            </DataGridTextColumn.EditingElementStyle>
+                                        </DataGridTextColumn>
+
+                                        <!-- Value Column for Coil Values (FC15) -->
+                                        <DataGridTemplateColumn Header="Value" Width="150" x:Name="CoilValueColumn" Visibility="Collapsed">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
-                                                    <!-- Coil Write (Boolean) Template -->
-                                                    <Grid>
-                                                        <CheckBox Visibility="{Binding IsCoilWrite, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                  IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
-                                                                  HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center"
-                                                                  Margin="5,0"
-                                                                  ToolTip="Toggle coil value (True/False)"
-                                                                  Checked="CheckBox_Checked"
-                                                                  Unchecked="CheckBox_Unchecked" />
-
-                                                        <!-- Register Value TextBox -->
-                                                        <TextBox Visibility="{Binding IsCoilWrite, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
-                                                                Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                                                Height="20" Width="Auto" Margin="5,0"
-                                                                VerticalContentAlignment="Center"
-                                                                FontSize="11"
-                                                                Padding="2,0"
-                                                                ToolTip="Enter register value" />
-                                                    </Grid>
+                                                    <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}" 
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              Margin="5,0"
+                                                              ToolTip="Toggle coil value (True/False)"
+                                                              Checked="CheckBox_Checked"
+                                                              Unchecked="CheckBox_Unchecked" />
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
