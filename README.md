@@ -11,9 +11,8 @@ Released on 2025-11-16 (see [Releases](https://github.com/PeakeElectronicInnovat
 - **Fixed Device Scan Response Panel**: Device scan results now properly display in the Response panel, showing slave ID and response time for all responding devices
 - **Improved Device Scan Reliability**: Implemented intelligent connection drop detection to avoid unnecessary connection resets during scanning
 - **Optimized Timeout Handling**: Device scan now uses a reliable 1000ms timeout for unknown devices, ensuring consistent detection of slower devices
-- **Reduced Scan Noise**: Removed excessive debug logging from device scan operations for cleaner event logs
-- **Enhanced Connection Management**: Smart heuristic detects real connection drops vs. non-existent devices, only resetting when necessary
-- **Faster Scanning Performance**: Eliminated unnecessary connection resets that were adding ~200ms delays per timeout
+- **Enhanced Slave Mode Register Control**: Added per-register word swap (byte order) configuration for better compatibility with different Modbus devices
+- **Fixed Custom Register Addressing**: Resolved issues with custom register addressing in slave mode, ensuring proper register mapping and response handling
 
 ## Version 1.3.0
 
