@@ -24,6 +24,9 @@ namespace ModbusTerm.Services
         private bool _needsConnectionRecovery = false;
         private bool _isDeviceScanActive = false;
         private CancellationTokenSource? _deviceScanCts;
+        private int _consecutiveTimeouts = 0;
+        private int _successfulResponses = 0;
+        private const int MAX_CONSECUTIVE_TIMEOUTS_BEFORE_RESET = 8;
 
         /// <summary>
         /// Event raised when a communication event occurs
@@ -794,8 +797,13 @@ namespace ModbusTerm.Services
                 _isDeviceScanActive = true;
                 _deviceScanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 
-                // Get the timeout value from the current connection parameters
-                int timeout = _currentParameters?.Timeout ?? 1000; // Default to 1 second if not set
+                // Initialize scan tracking counters
+                _consecutiveTimeouts = 0;
+                _successfulResponses = 0;
+                
+                // Force 1000ms timeout for device scanning to ensure reliability
+                // with unknown devices, regardless of user timeout settings
+                int timeout = 1000; // Default to 1 second if not set
 
                 RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent("Starting device scan..."));
 
@@ -864,6 +872,10 @@ namespace ModbusTerm.Services
                         scanResult.IsException = false;
                         scanResult.ResponseStatus = ResponseStatus.Success;
                         
+                        // Reset consecutive timeout counter on successful response
+                        _consecutiveTimeouts = 0;
+                        _successfulResponses++;
+                        
                         byte[] responseBytes = GetByteArrayFromUshorts(registers);
                         string receivedMessage = $"Found device at slave ID {slaveId} (response in {scanResult.ResponseTime:F1} ms)";
                         RaiseCommunicationEvent(CommunicationEvent.CreateReceivedEvent(responseBytes, receivedMessage));
@@ -880,13 +892,28 @@ namespace ModbusTerm.Services
                         scanResult.ResponseStatus = ResponseStatus.Timeout;
                         RaiseCommunicationEvent(CommunicationEvent.CreateInfoEvent($"No response from slave ID {slaveId} (timeout)"));
                         
-                        // Reconnect the serial port after timeout for RTU mode
-                        if (_serialPort != null && _currentParameters is RtuConnectionParameters rtuParams)
+                        // Track consecutive timeouts for connection drop detection
+                        _consecutiveTimeouts++;
+                        
+                        // Only reset connection if we detect a potential connection drop:
+                        // 1. We had successful responses earlier (indicating connection was working)
+                        // 2. We've had multiple consecutive timeouts (indicating connection went dead)
+                        // 3. Serial port is still reporting as open (driver issue)
+                        if (_successfulResponses > 0 && 
+                            _consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS_BEFORE_RESET &&
+                            _serialPort?.IsOpen == true)
                         {
-                            if (!ResetRtuConnectionWithRetry(rtuParams, "timeout"))
+                            RaiseCommunicationEvent(CommunicationEvent.CreateWarningEvent($"Detected potential connection drop after {_consecutiveTimeouts} consecutive timeouts. Resetting connection..."));
+                            
+                            if (_serialPort != null && _currentParameters is RtuConnectionParameters rtuParams)
                             {
-                                // If all retries failed, stop the scan
-                                break;
+                                if (!ResetRtuConnectionWithRetry(rtuParams, "connection drop detection"))
+                                {
+                                    // If all retries failed, stop the scan
+                                    break;
+                                }
+                                // Reset timeout counter after successful connection recovery
+                                _consecutiveTimeouts = 0;
                             }
                         }
                     }

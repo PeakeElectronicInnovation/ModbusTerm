@@ -130,26 +130,16 @@ namespace ModbusTerm.Helpers
                 // Read file content
                 string jsonContent = File.ReadAllText(filePath);
 
-                // First, deserialize to get the checksum
+                // Parse JSON to extract register data
                 using var document = JsonDocument.Parse(jsonContent);
                 var root = document.RootElement;
 
-                // Verify file structure
-                if (!root.TryGetProperty("Checksum", out var checksumProperty) ||
-                    !root.TryGetProperty("Data", out var dataProperty))
+                // Verify file structure - check for Data property
+                if (!root.TryGetProperty("Data", out var dataProperty))
                 {
-                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Invalid file format" };
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Invalid file format - missing Data section" };
                 }
 
-                string storedChecksum = checksumProperty.GetString() ?? string.Empty;
-                string dataJson = dataProperty.GetRawText();
-
-                // Extract the register data for checksum verification
-                List<RegisterDefinition>? holdingRegisters = null;
-                List<RegisterDefinition>? inputRegisters = null;
-                List<BooleanRegisterDefinition>? coils = null;
-                List<BooleanRegisterDefinition>? discreteInputs = null;
-                
                 // Define deserialization options
                 var deserializeOptions = new JsonSerializerOptions
                 {
@@ -157,6 +147,11 @@ namespace ModbusTerm.Helpers
                 };
                 
                 // Extract the register collections
+                List<RegisterDefinition>? holdingRegisters = null;
+                List<RegisterDefinition>? inputRegisters = null;
+                List<BooleanRegisterDefinition>? coils = null;
+                List<BooleanRegisterDefinition>? discreteInputs = null;
+                
                 if (dataProperty.TryGetProperty("HoldingRegisters", out var holdingRegistersElement))
                 {
                     holdingRegisters = JsonSerializer.Deserialize<List<RegisterDefinition>>(holdingRegistersElement.GetRawText(), deserializeOptions);
@@ -176,43 +171,26 @@ namespace ModbusTerm.Helpers
                 {
                     discreteInputs = JsonSerializer.Deserialize<List<BooleanRegisterDefinition>>(discreteInputsElement.GetRawText(), deserializeOptions);
                 }
-                
-                // Generate a consistent data string for checksum calculation
-                string checksumData = GenerateChecksumData(
-                    holdingRegisters ?? new List<RegisterDefinition>(),
-                    inputRegisters ?? new List<RegisterDefinition>(),
-                    coils ?? new List<BooleanRegisterDefinition>(),
-                    discreteInputs ?? new List<BooleanRegisterDefinition>());
-                
-                // Calculate and verify checksum
-                string calculatedChecksum = CalculateChecksum(checksumData);
-                
-                if (storedChecksum != calculatedChecksum)
+
+                // Validate the imported data
+                if (holdingRegisters == null || inputRegisters == null || coils == null || discreteInputs == null)
                 {
-                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Checksum verification failed. File may be corrupted or tampered with." };
+                    return new AllRegistersImportResult { Success = false, ErrorMessage = "Invalid file format - missing register collections" };
                 }
 
-                // Check register type matches what we expect
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                };
-
-                // Full deserialization
+                // Create result with imported data
                 var allRegisters = new AllRegistersImportResult
                 {
                     Success = true,
-                    HoldingRegisters = new List<RegisterDefinition>(),
-                    InputRegisters = new List<RegisterDefinition>(),
-                    Coils = new List<BooleanRegisterDefinition>(),
-                    DiscreteInputs = new List<BooleanRegisterDefinition>()
+                    HoldingRegisters = holdingRegisters,
+                    InputRegisters = inputRegisters,
+                    Coils = coils,
+                    DiscreteInputs = discreteInputs
                 };
 
-                // We already have the deserialized data, use it for the result
-                allRegisters.HoldingRegisters = holdingRegisters ?? new List<RegisterDefinition>();
-                allRegisters.InputRegisters = inputRegisters ?? new List<RegisterDefinition>();
-                allRegisters.Coils = coils ?? new List<BooleanRegisterDefinition>();
-                allRegisters.DiscreteInputs = discreteInputs ?? new List<BooleanRegisterDefinition>();
+                // Reconstruct multi-register data types after JSON deserialization
+                ReconstructMultiRegisterData(allRegisters.HoldingRegisters);
+                ReconstructMultiRegisterData(allRegisters.InputRegisters);
 
                 return allRegisters;
             }
@@ -221,7 +199,186 @@ namespace ModbusTerm.Helpers
                 return new AllRegistersImportResult { Success = false, ErrorMessage = ex.Message };
             }
         }
-
+        
+        /// <summary>
+        /// Reconstructs multi-register data types after JSON deserialization
+        /// </summary>
+        /// <param name="registers">List of registers to reconstruct</param>
+        private static void ReconstructMultiRegisterData(List<RegisterDefinition> registers)
+        {
+            foreach (var register in registers)
+            {
+                // Skip registers that don't have additional values (single-register types)
+                if (register.AdditionalValues.Count == 0)
+                    continue;
+                
+                // Suppress notifications during reconstruction to prevent recursive updates
+                bool oldSuppressNotifications = register.SuppressNotifications;
+                register.SuppressNotifications = true;
+                
+                try
+                {
+                    switch (register.DataType)
+                    {
+                        case ModbusDataType.UInt32:
+                            // Reconstruct from Value + AdditionalValues[0]
+                            if (register.AdditionalValues.Count >= 1)
+                            {
+                                uint reconstructedValue;
+                                if (register.WordOrder == WordOrder.LowWordFirst)
+                                {
+                                    // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                                    reconstructedValue = (uint)(register.AdditionalValues[0] << 16 | register.Value);
+                                }
+                                else
+                                {
+                                    // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                                    reconstructedValue = (uint)(register.Value << 16 | register.AdditionalValues[0]);
+                                }
+                                register.SetUInt32Value(reconstructedValue);
+                            }
+                            break;
+                            
+                        case ModbusDataType.Int32:
+                            // Reconstruct from Value + AdditionalValues[0]
+                            if (register.AdditionalValues.Count >= 1)
+                            {
+                                int reconstructedValue;
+                                if (register.WordOrder == WordOrder.LowWordFirst)
+                                {
+                                    // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                                    reconstructedValue = (int)(register.AdditionalValues[0] << 16 | register.Value);
+                                }
+                                else
+                                {
+                                    // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                                    reconstructedValue = (int)(register.Value << 16 | register.AdditionalValues[0]);
+                                }
+                                register.SetInt32Value(reconstructedValue);
+                            }
+                            break;
+                            
+                        case ModbusDataType.Float32:
+                            // Reconstruct from Value + AdditionalValues[0]
+                            if (register.AdditionalValues.Count >= 1)
+                            {
+                                byte[] bytes = new byte[4];
+                                
+                                if (register.WordOrder == WordOrder.LowWordFirst)
+                                {
+                                    // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                                    bytes[0] = (byte)(register.Value & 0xFF);
+                                    bytes[1] = (byte)(register.Value >> 8);
+                                    bytes[2] = (byte)(register.AdditionalValues[0] & 0xFF);
+                                    bytes[3] = (byte)(register.AdditionalValues[0] >> 8);
+                                }
+                                else
+                                {
+                                    // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                                    bytes[0] = (byte)(register.AdditionalValues[0] & 0xFF);
+                                    bytes[1] = (byte)(register.AdditionalValues[0] >> 8);
+                                    bytes[2] = (byte)(register.Value & 0xFF);
+                                    bytes[3] = (byte)(register.Value >> 8);
+                                }
+                                
+                                float reconstructedValue = BitConverter.ToSingle(bytes, 0);
+                                register.SetFloat32Value(reconstructedValue);
+                                
+                                // Directly set EditableValue to match ASCII reconstruction approach
+                                register.SuppressNotifications = false;
+                                register.EditableValue = reconstructedValue.ToString();
+                            }
+                            break;
+                            
+                        case ModbusDataType.Float64:
+                            // Reconstruct from Value + AdditionalValues[0-2]
+                            if (register.AdditionalValues.Count >= 3)
+                            {
+                                byte[] bytes = new byte[8];
+                                
+                                if (register.WordOrder == WordOrder.LowWordFirst)
+                                {
+                                    // Low Word First (CDAB): Value = Word0, AdditionalValues[0] = Word1, AdditionalValues[1] = Word2, AdditionalValues[2] = Word3
+                                    bytes[0] = (byte)(register.Value & 0xFF);
+                                    bytes[1] = (byte)(register.Value >> 8);
+                                    bytes[2] = (byte)(register.AdditionalValues[0] & 0xFF);
+                                    bytes[3] = (byte)(register.AdditionalValues[0] >> 8);
+                                    bytes[4] = (byte)(register.AdditionalValues[1] & 0xFF);
+                                    bytes[5] = (byte)(register.AdditionalValues[1] >> 8);
+                                    bytes[6] = (byte)(register.AdditionalValues[2] & 0xFF);
+                                    bytes[7] = (byte)(register.AdditionalValues[2] >> 8);
+                                }
+                                else
+                                {
+                                    // High Word First (ABCD): Value = Word3, AdditionalValues[0] = Word2, AdditionalValues[1] = Word1, AdditionalValues[2] = Word0
+                                    bytes[0] = (byte)(register.AdditionalValues[2] & 0xFF);
+                                    bytes[1] = (byte)(register.AdditionalValues[2] >> 8);
+                                    bytes[2] = (byte)(register.AdditionalValues[1] & 0xFF);
+                                    bytes[3] = (byte)(register.AdditionalValues[1] >> 8);
+                                    bytes[4] = (byte)(register.AdditionalValues[0] & 0xFF);
+                                    bytes[5] = (byte)(register.AdditionalValues[0] >> 8);
+                                    bytes[6] = (byte)(register.Value & 0xFF);
+                                    bytes[7] = (byte)(register.Value >> 8);
+                                }
+                                
+                                double reconstructedValue = BitConverter.ToDouble(bytes, 0);
+                                register.SetFloat64Value(reconstructedValue);
+                                
+                                // Directly set EditableValue to match ASCII reconstruction approach
+                                register.SuppressNotifications = false;
+                                register.EditableValue = reconstructedValue.ToString();
+                            }
+                            break;
+                            
+                        case ModbusDataType.AsciiString:
+                            // Reconstruct from Value + AdditionalValues
+                            var chars = new List<char>();
+                            
+                            // Extract characters from Value (high byte first, then low byte - matches SetAsciiStringValue encoding)
+                            chars.Add((char)(register.Value >> 8)); // First char from high byte
+                            chars.Add((char)(register.Value & 0xFF)); // Second char from low byte
+                                
+                            // Extract characters from AdditionalValues (same encoding pattern)
+                            foreach (var reg in register.AdditionalValues)
+                            {
+                                chars.Add((char)(reg >> 8)); // First char from high byte
+                                chars.Add((char)(reg & 0xFF)); // Second char from low byte
+                            }
+                            
+                            // Remove null terminators and create string
+                            string reconstructedString = new string(chars.Where(c => c != '\0').ToArray());
+                            
+                            // Re-enable notifications and directly set EditableValue to bypass re-encoding
+                            register.SuppressNotifications = false;
+                            register.EditableValue = reconstructedString;
+                            break;
+                    }
+                }
+                finally
+                {
+                    register.SuppressNotifications = oldSuppressNotifications;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Gets the full register value including AdditionalValues for multi-register types
+        /// </summary>
+        /// <param name="register">The register to serialize</param>
+        /// <returns>String representation of all register values</returns>
+        private static string GetFullRegisterValue(RegisterDefinition register)
+        {
+            var values = new List<string> { register.Value.ToString() };
+            
+            // Add additional values for multi-register types
+            foreach (var additionalValue in register.AdditionalValues)
+            {
+                values.Add(additionalValue.ToString());
+            }
+            
+            return string.Join(",", values);
+        }
+        
         /// <summary>
         /// Generates a consistent string representation of register data for checksumming
         /// </summary>
@@ -240,13 +397,17 @@ namespace ModbusTerm.Helpers
             // Add holding registers
             foreach (var reg in holdingRegisters.OrderBy(r => r.Address))
             {
-                sb.AppendLine($"HR|{reg.Address}|{reg.Value}|{reg.Name}|{reg.Description}");
+                // Include all register values for multi-register types
+                string allValues = GetFullRegisterValue(reg);
+                sb.AppendLine($"HR|{reg.Address}|{allValues}|{reg.DataType}|{reg.Name}|{reg.Description}");
             }
             
             // Add input registers
             foreach (var reg in inputRegisters.OrderBy(r => r.Address))
             {
-                sb.AppendLine($"IR|{reg.Address}|{reg.Value}|{reg.Name}|{reg.Description}");
+                // Include all register values for multi-register types
+                string allValues = GetFullRegisterValue(reg);
+                sb.AppendLine($"IR|{reg.Address}|{allValues}|{reg.DataType}|{reg.Name}|{reg.Description}");
             }
             
             // Add coils

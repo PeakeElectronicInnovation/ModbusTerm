@@ -7,6 +7,22 @@ using System.Runtime.CompilerServices;
 namespace ModbusTerm.Models
 {
     /// <summary>
+    /// Word order options for multi-register data types
+    /// </summary>
+    public enum WordOrder
+    {
+        /// <summary>
+        /// Low word first, high word second (CDAB format)
+        /// </summary>
+        LowWordFirst,
+        
+        /// <summary>
+        /// High word first, low word second (ABCD format)
+        /// </summary>
+        HighWordFirst
+    }
+
+    /// <summary>
     /// Defines a register in the slave mode register table
     /// </summary>
     public class RegisterDefinition : INotifyPropertyChanged
@@ -24,6 +40,8 @@ namespace ModbusTerm.Models
         private bool _editingInProgress = false; // Flag to prevent Value setter from disrupting editing
         private bool _suppressNotifications = false; // Flag to control whether property changes raise notifications
         private bool _isRecentlyModified = false; // Flag to indicate this register was recently modified by external master
+        private bool _isManuallyAddressed = false; // Flag to indicate if address was manually set
+        private WordOrder _wordOrder = WordOrder.LowWordFirst; // Word order for multi-register data types
         
         /// <summary>
         /// Gets or sets the register address
@@ -35,9 +53,43 @@ namespace ModbusTerm.Models
             {
                 if (_address != value)
                 {
+                    System.Diagnostics.Debug.WriteLine($"Address setter: {_address} -> {value}, marking as manual");
                     _address = value;
+                    // Mark as manually addressed unless we're in the middle of an address update operation
+                    // This will be set to false by SetAddressProgrammatically()
+                    _isManuallyAddressed = true;
                     NotifyPropertyChanged();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Sets the register address programmatically without marking it as manually addressed
+        /// Used by auto-addressing logic
+        /// </summary>
+        /// <param name="address">The address to set</param>
+        public void SetAddressProgrammatically(ushort address)
+        {
+            if (_address != address)
+            {
+                System.Diagnostics.Debug.WriteLine($"SetAddressProgrammatically: {_address} -> {address}, keeping IsManuallyAddressed={_isManuallyAddressed}");
+                _address = address;
+                // Don't mark as manually addressed - this is programmatic
+                NotifyPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// Sets the register address and marks it as manually addressed by the user
+        /// </summary>
+        /// <param name="address">The address to set</param>
+        public void SetAddressManually(ushort address)
+        {
+            if (_address != address)
+            {
+                _address = address;
+                _isManuallyAddressed = true; // Mark as manually addressed when user changes it
+                NotifyPropertyChanged();
             }
         }
 
@@ -266,6 +318,22 @@ namespace ModbusTerm.Models
         }
 
         /// <summary>
+        /// Gets or sets the word order for multi-register data types
+        /// </summary>
+        public WordOrder WordOrder
+        {
+            get => _wordOrder;
+            set
+            {
+                if (_wordOrder != value)
+                {
+                    _wordOrder = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the number of registers used (depends on DataType)
         /// </summary>
         public int RegisterCount 
@@ -341,11 +409,20 @@ namespace ModbusTerm.Models
         private uint GetUInt32Value()
         {
             if (AdditionalValues.Count < 1) return Value;
-            // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
-            return (uint)(AdditionalValues[0] << 16 | Value);
+            
+            if (WordOrder == WordOrder.LowWordFirst)
+            {
+                // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                return (uint)(AdditionalValues[0] << 16 | Value);
+            }
+            else
+            {
+                // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                return (uint)(Value << 16 | AdditionalValues[0]);
+            }
         }
 
-        private void SetUInt32Value(uint value)
+        public void SetUInt32Value(uint value)
         {
             // Ensure we have enough space in AdditionalValues
             while (AdditionalValues.Count < 1)
@@ -353,12 +430,26 @@ namespace ModbusTerm.Models
                 AdditionalValues.Add(0);
             }
             
-            // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
-            Value = (ushort)(value & 0xFFFF); // Low word in Value
-            AdditionalValues[0] = (ushort)(value >> 16); // High word in AdditionalValues[0]
+            // Split into high and low words
+            ushort highWord = (ushort)(value >> 16);
+            ushort lowWord = (ushort)(value & 0xFFFF);
             
-            // Notify about Value changes to trigger slave service update
-            NotifyPropertyChanged(nameof(Value));
+            // Set word order based on WordOrder property
+            if (WordOrder == WordOrder.LowWordFirst)
+            {
+                // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                Value = lowWord;
+                AdditionalValues[0] = highWord;
+            }
+            else
+            {
+                // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                Value = highWord;
+                AdditionalValues[0] = lowWord;
+            }
+            
+            // Notify about Value changes to trigger slave service update (bypass suppression)
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
             NotifyPropertyChanged(nameof(FormattedValue));
         }
 
@@ -367,7 +458,7 @@ namespace ModbusTerm.Models
             return (int)GetUInt32Value();
         }
         
-        private void SetInt32Value(int value)
+        public void SetInt32Value(int value)
         {
             SetUInt32Value((uint)value);
         }
@@ -376,15 +467,28 @@ namespace ModbusTerm.Models
         {
             if (AdditionalValues.Count < 1) return 0;
             byte[] bytes = new byte[4];
-            // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
-            bytes[0] = (byte)(Value & 0xFF);  // Low word bytes
-            bytes[1] = (byte)(Value >> 8);
-            bytes[2] = (byte)(AdditionalValues[0] & 0xFF);  // High word bytes
-            bytes[3] = (byte)(AdditionalValues[0] >> 8);
+            
+            if (WordOrder == WordOrder.LowWordFirst)
+            {
+                // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                bytes[0] = (byte)(Value & 0xFF);  // Low word bytes
+                bytes[1] = (byte)(Value >> 8);
+                bytes[2] = (byte)(AdditionalValues[0] & 0xFF);  // High word bytes
+                bytes[3] = (byte)(AdditionalValues[0] >> 8);
+            }
+            else
+            {
+                // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                bytes[0] = (byte)(AdditionalValues[0] & 0xFF);  // Low word bytes
+                bytes[1] = (byte)(AdditionalValues[0] >> 8);
+                bytes[2] = (byte)(Value & 0xFF);  // High word bytes
+                bytes[3] = (byte)(Value >> 8);
+            }
+            
             return BitConverter.ToSingle(bytes, 0);
         }
         
-        private void SetFloat32Value(float value)
+        public void SetFloat32Value(float value)
         {
             // Ensure we have enough space in AdditionalValues
             while (AdditionalValues.Count < 1)
@@ -395,35 +499,75 @@ namespace ModbusTerm.Models
             // Convert float to bytes
             byte[] bytes = BitConverter.GetBytes(value);
             
-            // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
-            Value = (ushort)((bytes[1] << 8) | bytes[0]);  // Low word
-            AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);  // High word
+            // Set editing flag to prevent Value setter from overwriting EditableValue
+            bool oldEditingInProgress = _editingInProgress;
+            _editingInProgress = true;
             
-            // Notify about Value changes to trigger slave service update
-            NotifyPropertyChanged(nameof(Value));
-            NotifyPropertyChanged(nameof(FormattedValue));
+            try
+            {
+                if (WordOrder == WordOrder.LowWordFirst)
+                {
+                    // Low Word First (CDAB): Value = Low Word, AdditionalValues[0] = High Word
+                    Value = (ushort)((bytes[1] << 8) | bytes[0]);  // Low word
+                    AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);  // High word
+                }
+                else
+                {
+                    // High Word First (ABCD): Value = High Word, AdditionalValues[0] = Low Word
+                    Value = (ushort)((bytes[3] << 8) | bytes[2]);  // High word
+                    AdditionalValues[0] = (ushort)((bytes[1] << 8) | bytes[0]);  // Low word
+                }
+                
+                // Don't automatically format EditableValue - preserve user input
+                // _editableValue = value.ToString("F3"); // REMOVED: This was causing the ".000" issue
+                
+                // Notify about Value changes to trigger slave service update (bypass suppression)
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+                NotifyPropertyChanged(nameof(FormattedValue));
+                // Don't notify EditableValue to preserve user input during editing
+            }
+            finally
+            {
+                _editingInProgress = oldEditingInProgress;
+            }
         }
 
         private double GetFloat64Value()
         {
             if (AdditionalValues.Count < 3) return 0;
             byte[] bytes = new byte[8];
-            // Match Float32 pattern: each register stores bytes in big-endian, registers in little-endian order
-            bytes[0] = (byte)(Value & 0xFF);        // Low byte of word 0
-            bytes[1] = (byte)(Value >> 8);          // High byte of word 0
-            bytes[2] = (byte)(AdditionalValues[0] & 0xFF);  // Low byte of word 1
-            bytes[3] = (byte)(AdditionalValues[0] >> 8);    // High byte of word 1
-            bytes[4] = (byte)(AdditionalValues[1] & 0xFF);  // Low byte of word 2
-            bytes[5] = (byte)(AdditionalValues[1] >> 8);    // High byte of word 2
-            bytes[6] = (byte)(AdditionalValues[2] & 0xFF);  // Low byte of word 3
-            bytes[7] = (byte)(AdditionalValues[2] >> 8);    // High byte of word 3
+            
+            if (WordOrder == WordOrder.LowWordFirst)
+            {
+                // Low Word First (CDAB): Value = Word0, AdditionalValues[0] = Word1, AdditionalValues[1] = Word2, AdditionalValues[2] = Word3
+                bytes[0] = (byte)(Value & 0xFF);        // Low byte of word 0
+                bytes[1] = (byte)(Value >> 8);          // High byte of word 0
+                bytes[2] = (byte)(AdditionalValues[0] & 0xFF);  // Low byte of word 1
+                bytes[3] = (byte)(AdditionalValues[0] >> 8);    // High byte of word 1
+                bytes[4] = (byte)(AdditionalValues[1] & 0xFF);  // Low byte of word 2
+                bytes[5] = (byte)(AdditionalValues[1] >> 8);    // High byte of word 2
+                bytes[6] = (byte)(AdditionalValues[2] & 0xFF);  // Low byte of word 3
+                bytes[7] = (byte)(AdditionalValues[2] >> 8);    // High byte of word 3
+            }
+            else
+            {
+                // High Word First (ABCD): Value = Word3, AdditionalValues[0] = Word2, AdditionalValues[1] = Word1, AdditionalValues[2] = Word0
+                bytes[0] = (byte)(AdditionalValues[2] & 0xFF);  // Low byte of word 0
+                bytes[1] = (byte)(AdditionalValues[2] >> 8);    // High byte of word 0
+                bytes[2] = (byte)(AdditionalValues[1] & 0xFF);  // Low byte of word 1
+                bytes[3] = (byte)(AdditionalValues[1] >> 8);    // High byte of word 1
+                bytes[4] = (byte)(AdditionalValues[0] & 0xFF);  // Low byte of word 2
+                bytes[5] = (byte)(AdditionalValues[0] >> 8);    // High byte of word 2
+                bytes[6] = (byte)(Value & 0xFF);        // Low byte of word 3
+                bytes[7] = (byte)(Value >> 8);          // High byte of word 3
+            }
             
             var result = BitConverter.ToDouble(bytes, 0);
             System.Diagnostics.Debug.WriteLine($"GetFloat64Value: Value=0x{Value:X4}, Add[0]=0x{AdditionalValues[0]:X4}, Add[1]=0x{AdditionalValues[1]:X4}, Add[2]=0x{AdditionalValues[2]:X4} => {result}");
             return result;
         }
         
-        private void SetFloat64Value(double value)
+        public void SetFloat64Value(double value)
         {
             // Ensure we have enough space in AdditionalValues
             while (AdditionalValues.Count < 3)
@@ -434,16 +578,27 @@ namespace ModbusTerm.Models
             // Convert double to bytes
             byte[] bytes = BitConverter.GetBytes(value);
             
-            // Match Float32 pattern: each register stores bytes in big-endian, registers in little-endian order
-            Value = (ushort)((bytes[1] << 8) | bytes[0]);                    // Word 0: bytes 0-1 with byte swap
-            AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);      // Word 1: bytes 2-3 with byte swap
-            AdditionalValues[1] = (ushort)((bytes[5] << 8) | bytes[4]);      // Word 2: bytes 4-5 with byte swap
-            AdditionalValues[2] = (ushort)((bytes[7] << 8) | bytes[6]);      // Word 3: bytes 6-7 with byte swap
+            if (WordOrder == WordOrder.LowWordFirst)
+            {
+                // Low Word First (CDAB): Value = Word0, AdditionalValues[0] = Word1, AdditionalValues[1] = Word2, AdditionalValues[2] = Word3
+                Value = (ushort)((bytes[1] << 8) | bytes[0]);                    // Word 0: bytes 0-1 with byte swap
+                AdditionalValues[0] = (ushort)((bytes[3] << 8) | bytes[2]);      // Word 1: bytes 2-3 with byte swap
+                AdditionalValues[1] = (ushort)((bytes[5] << 8) | bytes[4]);      // Word 2: bytes 4-5 with byte swap
+                AdditionalValues[2] = (ushort)((bytes[7] << 8) | bytes[6]);      // Word 3: bytes 6-7 with byte swap
+            }
+            else
+            {
+                // High Word First (ABCD): Value = Word3, AdditionalValues[0] = Word2, AdditionalValues[1] = Word1, AdditionalValues[2] = Word0
+                Value = (ushort)((bytes[7] << 8) | bytes[6]);                    // Word 3: bytes 6-7 with byte swap
+                AdditionalValues[0] = (ushort)((bytes[5] << 8) | bytes[4]);      // Word 2: bytes 4-5 with byte swap
+                AdditionalValues[1] = (ushort)((bytes[3] << 8) | bytes[2]);      // Word 1: bytes 2-3 with byte swap
+                AdditionalValues[2] = (ushort)((bytes[1] << 8) | bytes[0]);      // Word 0: bytes 0-1 with byte swap
+            }
             
             System.Diagnostics.Debug.WriteLine($"SetFloat64Value: {value} => Value=0x{Value:X4}, Add[0]=0x{AdditionalValues[0]:X4}, Add[1]=0x{AdditionalValues[1]:X4}, Add[2]=0x{AdditionalValues[2]:X4}");
             
-            // Notify about Value changes to trigger slave service update
-            NotifyPropertyChanged(nameof(Value));
+            // Notify about Value changes to trigger slave service update (bypass suppression)
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
             NotifyPropertyChanged(nameof(FormattedValue));
         }
 
@@ -491,7 +646,7 @@ namespace ModbusTerm.Models
             }
         }
         
-        private void SetAsciiStringValue(string value)
+        public void SetAsciiStringValue(string value)
         {
             try
             {
@@ -574,6 +729,23 @@ namespace ModbusTerm.Models
                 if (_isRecentlyModified != value)
                 {
                     _isRecentlyModified = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether this register's address was manually set by the user
+        /// Manually addressed registers are preserved during auto-addressing operations
+        /// </summary>
+        public bool IsManuallyAddressed
+        {
+            get => _isManuallyAddressed;
+            set
+            {
+                if (_isManuallyAddressed != value)
+                {
+                    _isManuallyAddressed = value;
                     NotifyPropertyChanged();
                 }
             }

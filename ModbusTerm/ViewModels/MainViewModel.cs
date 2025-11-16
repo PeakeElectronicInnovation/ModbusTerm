@@ -435,7 +435,14 @@ namespace ModbusTerm.ViewModels
         public bool IsConnected
         {
             get => _isConnected;
-            set => SetProperty(ref _isConnected, value);
+            set 
+            { 
+                if (SetProperty(ref _isConnected, value))
+                {
+                    OnPropertyChanged(nameof(CanSendRequest));
+                    OnPropertyChanged(nameof(CanStartScan));
+                }
+            }
         }
 
         /// <summary>
@@ -473,6 +480,11 @@ namespace ModbusTerm.ViewModels
                             OnPropertyChanged(nameof(IsListenMode));
                         }
                     }
+                    
+                    // Update button enable/disable states
+                    OnPropertyChanged(nameof(CanSendRequest));
+                    OnPropertyChanged(nameof(CanStartScan));
+                    OnPropertyChanged(nameof(CanStartContinuous));
                     
                     // Update connection parameters
                     if (_connectionParameters != null)
@@ -732,14 +744,45 @@ namespace ModbusTerm.ViewModels
         {
             get => _isDeviceScanActive;
             private set 
-            { 
+            {
                 if (SetProperty(ref _isDeviceScanActive, value))
                 {
-                    // Update UI to reflect scan mode changes
                     OnPropertyChanged(nameof(IsInScanMode));
+                    OnPropertyChanged(nameof(ShowStartScanButton));
+                    OnPropertyChanged(nameof(ShowStopScanButton));
+                    OnPropertyChanged(nameof(CanSendRequest));
+                    OnPropertyChanged(nameof(CanStartScan));
+                    ScanForDevicesCommand.RaiseCanExecuteChanged();
+                    StopDeviceScanCommand.RaiseCanExecuteChanged();
+                    StartContinuousCommand.RaiseCanExecuteChanged();
                 }
             }
         }
+        
+        /// <summary>
+        /// Gets whether the Start Scan button should be visible
+        /// </summary>
+        public bool ShowStartScanButton => !IsDeviceScanActive;
+
+        /// <summary>
+        /// Gets whether the Stop Scan button should be visible
+        /// </summary>
+        public bool ShowStopScanButton => IsDeviceScanActive;
+
+        /// <summary>
+        /// Gets whether the Send Request button should be enabled
+        /// </summary>
+        public bool CanSendRequest => IsConnected && IsMasterMode && !IsDeviceScanActive && !IsContinuousRequestActive;
+
+        /// <summary>
+        /// Gets whether the Start Scan button should be enabled
+        /// </summary>
+        public bool CanStartScan => IsConnected && IsMasterMode && !IsDeviceScanActive && !IsContinuousRequestActive && ConnectionParameters is RtuConnectionParameters;
+
+        /// <summary>
+        /// Gets whether the Start Continuous button should be enabled
+        /// </summary>
+        public bool CanStartContinuous => IsConnected && IsMasterMode && !IsContinuousRequestActive && !IsDeviceScanActive;
         
         /// <summary>
         /// Gets or sets the Slave ID for Modbus slave mode
@@ -799,6 +842,11 @@ namespace ModbusTerm.ViewModels
         /// Gets the available data types based on the current Modbus function
         /// </summary>
         public List<ModbusDataType> AvailableDataTypes => _availableDataTypes;
+
+        /// <summary>
+        /// Gets the available word order options for multi-register data types
+        /// </summary>
+        public List<WordOrder> AvailableWordOrders => Enum.GetValues(typeof(WordOrder)).Cast<WordOrder>().ToList();
 
         /// <summary>
         /// Gets whether a response is available
@@ -878,8 +926,27 @@ namespace ModbusTerm.ViewModels
         public bool IsContinuousRequestActive
         {
             get => _isContinuousRequestActive;
-            set => SetProperty(ref _isContinuousRequestActive, value);
+            set 
+            { 
+                if (SetProperty(ref _isContinuousRequestActive, value))
+                {
+                    OnPropertyChanged(nameof(ShowStartContinuousButton));
+                    OnPropertyChanged(nameof(ShowStopContinuousButton));
+                    OnPropertyChanged(nameof(CanSendRequest));
+                    OnPropertyChanged(nameof(CanStartScan));
+                }
+            }
         }
+
+        /// <summary>
+        /// Gets whether the Start Continuous button should be visible
+        /// </summary>
+        public bool ShowStartContinuousButton => !IsContinuousRequestActive;
+
+        /// <summary>
+        /// Gets whether the Stop Continuous button should be visible
+        /// </summary>
+        public bool ShowStopContinuousButton => IsContinuousRequestActive;
         
         /// <summary>
         /// Gets or sets the continuous request period in milliseconds
@@ -968,7 +1035,7 @@ namespace ModbusTerm.ViewModels
             RemoveProfileCommand = new RelayCommand(_ => RemoveProfile(), _ => !string.IsNullOrEmpty(SelectedProfileName) && SelectedProfileName != "Default Profile");
             ScanForDevicesCommand = new RelayCommand(_ => StartDeviceScan(), _ => CanScanForDevices());
             StopDeviceScanCommand = new RelayCommand(_ => StopDeviceScan(), _ => CanStopDeviceScan());
-            StartContinuousCommand = new RelayCommand(_ => StartContinuousRequests(), _ => CanStartContinuous());
+            StartContinuousCommand = new RelayCommand(_ => StartContinuousRequests(), _ => CanStartContinuous);
             StopContinuousCommand = new RelayCommand(_ => StopContinuousRequests(), _ => CanStopContinuous());
             OpenChartCommand = new RelayCommand(_ => OpenChartWindow(), _ => IsMasterMode);
             
@@ -1894,76 +1961,26 @@ namespace ModbusTerm.ViewModels
                 // Log the start of scanning
                 OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent("Starting device scan..."));
                 
-                // Start the scan asynchronously
+                // Start the scan asynchronously using the service method
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        // Scan slave IDs from 1 to 247
-                        for (byte slaveId = 1; slaveId <= 247; slaveId++)
-                        {
-                            if (_deviceScanCts.Token.IsCancellationRequested)
-                                break;
-
-                            try
-                            {
-                                // Try to read a single holding register from address 0
-                                var parameters = new ReadFunctionParameters
-                                {
-                                    SlaveId = slaveId,
-                                    FunctionCode = ModbusFunctionCode.ReadHoldingRegisters,
-                                    StartAddress = 0,
-                                    Quantity = 1
-                                };
-                                
-                                var response = await masterService.ExecuteRequestAsync(parameters);
-                                
-                                if (response is ushort[] registers && registers.Length > 0)
-                                {
-                                    // Device responded - add to results
-                                    var deviceInfo = new DeviceScanResult
-                                    {
-                                        SlaveId = slaveId,
-                                        Responded = true,
-                                        ResponseStatus = Models.ResponseStatus.Success,
-                                        ResponseTime = 0, // Will be set by the service
-                                        Timestamp = DateTime.Now
-                                    };
-                                    
-                                    _deviceScanResults.Add(deviceInfo);
-                                    
-                                    // Update UI on main thread
-                                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                                    {
-                                        ResponseItems.Add(new ModbusResponseItem
-                                        {
-                                            Address = slaveId,
-                                            Value = "Responding"
-                                        });
-                                        
-                                        OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Found device at slave ID {slaveId}"));
-                                    });
-                                }
-                            }
-                            catch
-                            {
-                                // Device didn't respond - continue scanning
-                            }
-                            
-                            // Small delay between requests
-                            await Task.Delay(50, _deviceScanCts.Token);
-                        }
+                        await masterService.ScanForDevicesAsync(_deviceScanCts.Token);
                         
-                        // Update UI when scan completes
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        // Scan completed successfully
+                        if (!_deviceScanCts.Token.IsCancellationRequested)
                         {
-                            IsDeviceScanActive = false;
-                            ResponseStatus = $"Device scan completed. Found {_deviceScanResults.Count} responding devices.";
-                            OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Device scan completed. Found {_deviceScanResults.Count} responding devices."));
-                            
-                            // Update UI to show the response items
-                            OnPropertyChanged(nameof(HasLastResponse));
-                        });
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                IsDeviceScanActive = false;
+                                ResponseStatus = $"Device scan completed. Found {_deviceScanResults.Count} responding devices.";
+                                OnCommunicationEvent(this, CommunicationEvent.CreateInfoEvent($"Device scan completed. Found {_deviceScanResults.Count} responding devices."));
+                                
+                                // Update UI to show the response items
+                                OnPropertyChanged(nameof(HasLastResponse));
+                            });
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -2034,6 +2051,7 @@ namespace ModbusTerm.ViewModels
                             Address = result.SlaveId,
                             Value = $"{result.ResponseTime:F1} ms"
                         });
+                        OnPropertyChanged(nameof(HasLastResponse));
                         break;
                         
                     case Models.ResponseStatus.Exception:
@@ -2046,6 +2064,7 @@ namespace ModbusTerm.ViewModels
                             Address = result.SlaveId,
                             Value = $"Exception: {result.ExceptionMessage}"
                         });
+                        OnPropertyChanged(nameof(HasLastResponse));
                         break;
                         
                     case Models.ResponseStatus.Timeout:
@@ -2232,19 +2251,28 @@ namespace ModbusTerm.ViewModels
                 {
                     var lastRegister = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).Last();
                     nextAddress = (ushort)(lastRegister.Address + lastRegister.RegisterCount);
+                    System.Diagnostics.Debug.WriteLine($"AddRegister: Last register at {lastRegister.Address} (count {lastRegister.RegisterCount}), next address will be {nextAddress}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"AddRegister: No existing registers, starting at address 0");
                 }
                 
                 // Create a new register with the calculated address
                 var newRegister = new RegisterDefinition
                 {
-                    Address = nextAddress,
                     Value = 0,
                     Name = $"Register {nextAddress}",
                     Description = "New holding register",
                     DataType = ModbusDataType.UInt16,
                     // Ensure the new register doesn't have IsRecentlyModified set
-                    IsRecentlyModified = false
+                    IsRecentlyModified = false,
+                    // Mark as auto-addressed (not manually set by user)
+                    IsManuallyAddressed = false
                 };
+                
+                // Set the address programmatically to avoid marking as manually addressed
+                newRegister.SetAddressProgrammatically(nextAddress);
                 
                 // Temporarily disable register changed notifications
                 bool oldSuppressNotifications = newRegister.SuppressNotifications;
@@ -2297,17 +2325,26 @@ namespace ModbusTerm.ViewModels
                 {
                     var lastRegister = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).Last();
                     nextAddress = (ushort)(lastRegister.Address + lastRegister.RegisterCount);
+                    System.Diagnostics.Debug.WriteLine($"AddInputRegister: Last register at {lastRegister.Address} (count {lastRegister.RegisterCount}), next address will be {nextAddress}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"AddInputRegister: No existing registers, starting at address 0");
                 }
                 
                 // Create a new register with the calculated address
                 var newRegister = new RegisterDefinition
                 {
-                    Address = nextAddress,
                     Value = 0,
                     Name = $"Input {nextAddress}",
                     Description = "New input register",
-                    DataType = ModbusDataType.UInt16
+                    DataType = ModbusDataType.UInt16,
+                    // Mark as auto-addressed (not manually set by user)
+                    IsManuallyAddressed = false
                 };
+                
+                // Set the address programmatically to avoid marking as manually addressed
+                newRegister.SetAddressProgrammatically(nextAddress);
                 
                 // Add to the service's collection
                 _slaveService.InputRegisterDefinitions.Add(newRegister);
@@ -2813,11 +2850,8 @@ namespace ModbusTerm.ViewModels
                 }
             }
             
-            // If the data type or register count changed and we're not already updating addresses, update all addresses
-            if (sender is RegisterDefinition && (e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
-            {
-                UpdateHoldingRegisterAddresses();
-            }
+            // Note: We no longer update addresses on DataType or RegisterCount changes to preserve manual addressing
+            // Users can manually adjust addresses if needed, and new registers will still calculate correct offsets
         }
         
         /// <summary>
@@ -2839,11 +2873,8 @@ namespace ModbusTerm.ViewModels
                 }
             }
             
-            // If the data type or register count changed and we're not already updating addresses, update all addresses
-            if (sender is RegisterDefinition && (e.PropertyName == nameof(RegisterDefinition.DataType) || e.PropertyName == nameof(RegisterDefinition.RegisterCount)) && !_isUpdatingAddresses)
-            {
-                UpdateInputRegisterAddresses();
-            }
+            // Note: We no longer update addresses on DataType or RegisterCount changes to preserve manual addressing
+            // Users can manually adjust addresses if needed, and new registers will still calculate correct offsets
         }
         
         /// <summary>
@@ -3851,20 +3882,32 @@ namespace ModbusTerm.ViewModels
 
         /// <summary>
         /// Update addresses for all holding registers based on their data types and register counts
+        /// Only registers that are not manually addressed will be updated
         /// </summary>
         private void UpdateHoldingRegisterAddresses()
         {
             if (_slaveService?.RegisterDefinitions == null || _isUpdatingAddresses) return;
 
+            System.Diagnostics.Debug.WriteLine($"UpdateHoldingRegisterAddresses called");
+            foreach (var reg in _slaveService.RegisterDefinitions)
+            {
+                System.Diagnostics.Debug.WriteLine($"Register {reg.Address}: IsManuallyAddressed={reg.IsManuallyAddressed}, RegisterCount={reg.RegisterCount}");
+            }
+
             _isUpdatingAddresses = true;
             try
             {
-                var sortedRegisters = _slaveService.RegisterDefinitions.OrderBy(r => r.Address).ToList();
+                // Get only non-manually addressed registers for auto-addressing
+                var autoRegisters = _slaveService.RegisterDefinitions.Where(r => !r.IsManuallyAddressed).OrderBy(r => r.Address).ToList();
+                
+                if (autoRegisters.Count == 0) return; // No registers to auto-address
+
                 ushort currentAddress = 0; // Start from address 0
 
-                foreach (var register in sortedRegisters)
+                foreach (var register in autoRegisters)
                 {
-                    register.Address = currentAddress;
+                    System.Diagnostics.Debug.WriteLine($"Setting register address to {currentAddress}");
+                    register.SetAddressProgrammatically(currentAddress);
                     currentAddress = (ushort)(currentAddress + register.RegisterCount);
                 }
             }
@@ -3876,20 +3919,32 @@ namespace ModbusTerm.ViewModels
 
         /// <summary>
         /// Update addresses for all input registers based on their data types and register counts
+        /// Only registers that are not manually addressed will be updated
         /// </summary>
         private void UpdateInputRegisterAddresses()
         {
             if (_slaveService?.InputRegisterDefinitions == null || _isUpdatingAddresses) return;
 
+            System.Diagnostics.Debug.WriteLine($"UpdateInputRegisterAddresses called");
+            foreach (var reg in _slaveService.InputRegisterDefinitions)
+            {
+                System.Diagnostics.Debug.WriteLine($"Input Register {reg.Address}: IsManuallyAddressed={reg.IsManuallyAddressed}, RegisterCount={reg.RegisterCount}");
+            }
+
             _isUpdatingAddresses = true;
             try
             {
-                var sortedRegisters = _slaveService.InputRegisterDefinitions.OrderBy(r => r.Address).ToList();
+                // Get only non-manually addressed registers for auto-addressing
+                var autoRegisters = _slaveService.InputRegisterDefinitions.Where(r => !r.IsManuallyAddressed).OrderBy(r => r.Address).ToList();
+                
+                if (autoRegisters.Count == 0) return; // No registers to auto-address
+
                 ushort currentAddress = 0; // Start from address 0
 
-                foreach (var register in sortedRegisters)
+                foreach (var register in autoRegisters)
                 {
-                    register.Address = currentAddress;
+                    System.Diagnostics.Debug.WriteLine($"Setting input register address to {currentAddress}");
+                    register.SetAddressProgrammatically(currentAddress);
                     currentAddress = (ushort)(currentAddress + register.RegisterCount);
                 }
             }
@@ -4020,13 +4075,6 @@ namespace ModbusTerm.ViewModels
         
         #region Continuous Request Methods
         
-        /// <summary>
-        /// Determines if continuous requests can be started
-        /// </summary>
-        private bool CanStartContinuous()
-        {
-            return IsConnected && IsMasterMode && !IsContinuousRequestActive && !IsDeviceScanActive;
-        }
         
         /// <summary>
         /// Determines if continuous requests can be stopped
@@ -4043,7 +4091,7 @@ namespace ModbusTerm.ViewModels
         {
             try
             {
-                if (!CanStartContinuous())
+                if (!CanStartContinuous)
                     return;
                     
                 // Stop any existing continuous requests
