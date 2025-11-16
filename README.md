@@ -2,6 +2,19 @@
 
 A comprehensive Modbus testing application supporting both TCP and RTU connections with master and slave device functionality. ModbusTerm provides an easy-to-use interface for testing, debugging, and simulating Modbus devices in industrial automation environments.
 
+## Version 1.3.2
+
+Released on 2025-11-16 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version includes significant improvements to device scanning reliability and performance.
+
+### Bug Fixes and Enhancements in Version 1.3.2
+
+- **Fixed Device Scan Response Panel**: Device scan results now properly display in the Response panel, showing slave ID and response time for all responding devices
+- **Improved Device Scan Reliability**: Implemented intelligent connection drop detection to avoid unnecessary connection resets during scanning
+- **Optimized Timeout Handling**: Device scan now uses a reliable 1000ms timeout for unknown devices, ensuring consistent detection of slower devices
+- **Reduced Scan Noise**: Removed excessive debug logging from device scan operations for cleaner event logs
+- **Enhanced Connection Management**: Smart heuristic detects real connection drops vs. non-existent devices, only resetting when necessary
+- **Faster Scanning Performance**: Eliminated unnecessary connection resets that were adding ~200ms delays per timeout
+
 ## Version 1.3.0
 
 Released on 2025-08-31 (see [Releases](https://github.com/PeakeElectronicInnovation/ModbusTerm/releases)). This version introduces advanced data visualization and automation capabilities.
